@@ -29,6 +29,11 @@ In dev, every browser log line, plus uncaught errors, also prints in the `npm ru
 
 Set the level with `VITE_LOG_LEVEL=info npm run dev` (debug | info | warn | error; default debug).
 
+Debug switches (dev only), added to the page URL:
+- `?gpufail`: the background-removal worker pretends its GPU failed, to test the automatic
+  switch to CPU (look for `[cutout] GPU failed, switching to CPU` in the log).
+- `__pawpScene` in the browser console: the three.js scene.
+
 ### Live build (launch)
 
 ```sh

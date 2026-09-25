@@ -17,24 +17,45 @@ const setJob = (layerId: string, job: Job | null) =>
   })
 
 let worker: Worker | null = null
-const waiting = new Map<string, (msg: CutoutResponse) => void>()
+/** After a GPU failure the worker is restarted CPU-only for the rest of the session. */
+let cpuOnly = false
+const waiting = new Map<string, { msg: CutoutRequest; onMessage: (res: CutoutResponse) => void }>()
 
 function getWorker() {
   if (!worker) {
-    worker = new Worker(new URL('./bgRemoval.worker.ts', import.meta.url), { type: 'module' })
-    worker.onmessage = ({ data }: MessageEvent<CutoutResponse>) => waiting.get(data.id)?.(data)
+    worker = new Worker(new URL('./bgRemoval.worker.ts', import.meta.url), {
+      type: 'module',
+      // Dev: open the app with ?gpufail to simulate a GPU failure and test the CPU restart.
+      name: cpuOnly ? 'cpu' : import.meta.env.DEV && location.search.includes('gpufail') ? 'gpufail' : 'auto',
+    })
+    worker.onmessage = ({ data }: MessageEvent<CutoutResponse>) => {
+      if (data.type === 'error' && data.gpu && !cpuOnly) return restartOnCpu(data.message)
+      waiting.get(data.id)?.onMessage(data)
+    }
   }
   return worker
+}
+
+/** The GPU failed (unsupported, out of memory…): start over on the CPU and resend open jobs. */
+function restartOnCpu(reason: string) {
+  log.warn('cutout', `GPU failed, switching to CPU: ${reason.split('\n')[0]}`)
+  cpuOnly = true
+  worker?.terminate()
+  worker = null
+  for (const { msg } of waiting.values()) getWorker().postMessage(msg)
 }
 
 /** Send one job to the worker; progress goes to `onProgress`. */
 function request(msg: CutoutRequest, onProgress: (job: Job) => void): Promise<MaskResult> {
   return new Promise<MaskResult>((resolve, reject) => {
-    waiting.set(msg.id, (res) => {
-      if (res.type === 'progress') return onProgress({ phase: res.phase, percent: res.percent })
-      waiting.delete(msg.id)
-      if (res.type === 'mask') resolve(res)
-      else reject(new Error(res.message))
+    waiting.set(msg.id, {
+      msg,
+      onMessage: (res) => {
+        if (res.type === 'progress') return onProgress({ phase: res.phase, percent: res.percent })
+        waiting.delete(msg.id)
+        if (res.type === 'mask') resolve(res)
+        else reject(new Error(res.message))
+      },
     })
     getWorker().postMessage(msg)
   })

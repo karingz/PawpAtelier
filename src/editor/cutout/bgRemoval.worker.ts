@@ -49,11 +49,21 @@ function progress_callback(p: { status: string; file?: string; name?: string; lo
   if (total > 0) post({ id: currentRequest, type: 'progress', phase: 'download', percent: (loaded / total) * 100 })
 }
 
-let device: 'webgpu' | 'wasm' | null = null
-async function pickDevice() {
+type Device = { device: 'webgpu' | 'wasm'; /** Precision for soft-edged masks. */ dtype: 'fp16' | 'fp32' | 'q8' }
+let device: Device | null = null
+
+/** A worker started with name 'cpu' never touches the GPU (see removeBackground.ts). */
+const CPU = { device: 'wasm', dtype: 'q8' } as const satisfies Device
+
+/**
+ * GPU if the browser has WebGPU, else CPU. fp16 needs the GPU's `shader-f16` feature (many
+ * don't have it); without it use fp32. On CPU the 8-bit models keep things fast.
+ */
+async function pickDevice(): Promise<Device> {
   if (!device) {
     const gpu = (navigator as Navigator & { gpu?: GPU }).gpu
-    device = gpu && (await gpu.requestAdapter()) ? 'webgpu' : 'wasm'
+    const adapter = self.name !== 'cpu' && gpu ? await gpu.requestAdapter().catch(() => null) : null
+    device = adapter ? { device: 'webgpu', dtype: adapter.features.has('shader-f16') ? 'fp16' : 'fp32' } : CPU
   }
   return device
 }
@@ -62,9 +72,8 @@ type Rmbg = { model: PreTrainedModel; processor: Processor; dtype: string }
 let rmbgLoading: Promise<Rmbg> | null = null
 function loadRmbg() {
   rmbgLoading ??= (async () => {
-    const dev = await pickDevice()
-    // fp16 keeps soft fur edges; the 8-bit model is smaller but bands the alpha a little.
-    const dtype = dev === 'webgpu' ? 'fp16' : 'q8'
+    // fp16/fp32 keep soft fur edges; the 8-bit CPU model bands the alpha a little.
+    const { device: dev, dtype } = await pickDevice()
     const model = await AutoModel.from_pretrained(RMBG_ID, {
       // RMBG is a custom architecture; load it as a plain ONNX model.
       config: { model_type: 'custom' } as never,
@@ -83,12 +92,9 @@ type Sam = { model: SamModel; processor: Processor }
 let samLoading: Promise<Sam> | null = null
 function loadSam() {
   samLoading ??= (async () => {
-    const dev = await pickDevice()
-    const model = (await SamModel.from_pretrained(SAM_ID, {
-      device: dev,
-      dtype: dev === 'webgpu' ? 'fp16' : 'q8',
-      progress_callback,
-    })) as SamModel
+    // SlimSAM is small and fast on the CPU; keeping it off the GPU leaves memory for RMBG and
+    // the 3D scene.
+    const model = (await SamModel.from_pretrained(SAM_ID, { ...CPU, progress_callback })) as SamModel
     const processor = await AutoProcessor.from_pretrained(SAM_ID, { progress_callback })
     return { model, processor }
   })()
@@ -368,45 +374,57 @@ self.onmessage = ({ data }: MessageEvent<CutoutRequest>) => {
 }
 
 async function handle(data: CutoutRequest) {
+  try {
+    if (self.name === 'gpufail') {
+      device = { device: 'webgpu', dtype: 'fp32' }
+      throw new Error('Simulated GPU failure (?gpufail)')
+    }
+    await run(data)
+  } catch (err) {
+    // A GPU failure leaves this worker's WebGPU device unusable; the editor restarts the
+    // worker on the CPU when it sees `gpu: true`.
+    const message = err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err)
+    post({ id: data.id, type: 'error', message, gpu: device?.device === 'webgpu' })
+  }
+}
+
+async function run(data: CutoutRequest) {
   const { id, src } = data
   currentRequest = id
   const started = performance.now()
-  try {
-    if (data.type === 'auto') {
-      const { full } = await images(src)
-      const rmbgRaw = await rmbgMask(src, full)
-      const alpha = await resizeMask(rmbgRaw, full.width, full.height)
-      const { dtype } = await loadRmbg()
-      post(
-        { id, type: 'mask', alpha, width: full.width, height: full.height, info: { mode: 'auto', model: RMBG_ID, device: device!, dtype, ms: Math.round(performance.now() - started) } },
-        [alpha.buffer],
-      )
-      return
-    }
-
-    const m = await lassoMasks(src, data.prompt)
-    const info = {
-      mode: data.type,
-      device: device!,
-      samScore: m.samScore,
-      taps: data.prompt.taps.length,
-      autoPoints: m.autoPoints,
-    }
-    if (data.type === 'preview') {
-      const alpha = blend(m.rmbg, m.keep, m.solid)
-      post({ id, type: 'mask', alpha, width: m.w, height: m.h, info: { ...info, ms: Math.round(performance.now() - started) } }, [alpha.buffer])
-      return
-    }
-
-    // Final: RMBG at full resolution for the edges, the small keep/solid masks upscaled.
-    const W = m.full.width
-    const H = m.full.height
-    const rmbg = await resizeMask(m.rmbgRaw, W, H)
-    const keep = await resizeMask({ data: m.keep, width: m.w, height: m.h }, W, H)
-    const solid = await resizeMask({ data: m.solid, width: m.w, height: m.h }, W, H)
-    const alpha = blend(rmbg, keep, solid)
-    post({ id, type: 'mask', alpha, width: W, height: H, info: { ...info, ms: Math.round(performance.now() - started) } }, [alpha.buffer])
-  } catch (err) {
-    post({ id, type: 'error', message: err instanceof Error ? `${err.message}\n${err.stack ?? ''}` : String(err) })
+  if (data.type === 'auto') {
+    const { full } = await images(src)
+    const rmbgRaw = await rmbgMask(src, full)
+    const alpha = await resizeMask(rmbgRaw, full.width, full.height)
+    const { dtype } = await loadRmbg()
+    post(
+      { id, type: 'mask', alpha, width: full.width, height: full.height, info: { mode: 'auto', model: RMBG_ID, device: device!.device, dtype, ms: Math.round(performance.now() - started) } },
+      [alpha.buffer],
+    )
+    return
   }
+
+  const m = await lassoMasks(src, data.prompt)
+  const info = {
+    mode: data.type,
+    device: device!.device,
+    dtype: device!.dtype,
+    samScore: m.samScore,
+    taps: data.prompt.taps.length,
+    autoPoints: m.autoPoints,
+  }
+  if (data.type === 'preview') {
+    const alpha = blend(m.rmbg, m.keep, m.solid)
+    post({ id, type: 'mask', alpha, width: m.w, height: m.h, info: { ...info, ms: Math.round(performance.now() - started) } }, [alpha.buffer])
+    return
+  }
+
+  // Final: RMBG at full resolution for the edges, the small keep/solid masks upscaled.
+  const W = m.full.width
+  const H = m.full.height
+  const rmbg = await resizeMask(m.rmbgRaw, W, H)
+  const keep = await resizeMask({ data: m.keep, width: m.w, height: m.h }, W, H)
+  const solid = await resizeMask({ data: m.solid, width: m.w, height: m.h }, W, H)
+  const alpha = blend(rmbg, keep, solid)
+  post({ id, type: 'mask', alpha, width: W, height: H, info: { ...info, ms: Math.round(performance.now() - started) } }, [alpha.buffer])
 }

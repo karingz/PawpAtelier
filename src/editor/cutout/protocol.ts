@@ -25,4 +25,5 @@ export type CutoutResponse =
       height: number
       info: Record<string, string | number | boolean>
     }
-  | { id: string; type: 'error'; message: string }
+  /** `gpu`: failed while running on WebGPU (the worker should be restarted on the CPU). */
+  | { id: string; type: 'error'; message: string; gpu: boolean }
