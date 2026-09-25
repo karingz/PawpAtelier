@@ -1,0 +1,316 @@
+{
+  "$comment": "Sample pet photos to try. 'leah-*' are the owner's own photos of their dog Leah (metadata stripped); the rest are CC0 1.0 from Wikimedia Commons, license re-checked via the Commons API when downloaded. Tags describe what each one tests.",
+  "samples": [
+    {
+      "id": "leah-smile",
+      "label": "Leah smiling",
+      "src": "/samples/leah-smile.jpg",
+      "thumb": "/samples/thumbs/leah-smile.jpg",
+      "width": 2000,
+      "height": 1500,
+      "tags": [
+        "easy"
+      ],
+      "license": "Owner's photo, used with permission",
+      "author": "Leah's family (Pawp Atelier)",
+      "source": "",
+      "collection": "leah",
+      "meta": {
+        "takenAt": "2022-05-24T16:02:42"
+      }
+    },
+    {
+      "id": "leah-toy",
+      "label": "Leah with her toy",
+      "src": "/samples/leah-toy.jpg",
+      "thumb": "/samples/thumbs/leah-toy.jpg",
+      "width": 1500,
+      "height": 2000,
+      "tags": [
+        "nearby object"
+      ],
+      "license": "Owner's photo, used with permission",
+      "author": "Leah's family (Pawp Atelier)",
+      "source": "",
+      "collection": "leah",
+      "meta": {
+        "takenAt": "2022-05-24T15:52:44"
+      }
+    },
+    {
+      "id": "leah-paws",
+      "label": "Leah's paws",
+      "src": "/samples/leah-paws.jpg",
+      "thumb": "/samples/thumbs/leah-paws.jpg",
+      "width": 1500,
+      "height": 2000,
+      "tags": [
+        "soft fur",
+        "wood"
+      ],
+      "license": "Owner's photo, used with permission",
+      "author": "Leah's family (Pawp Atelier)",
+      "source": "",
+      "collection": "leah",
+      "meta": {
+        "takenAt": "2023-06-14T21:04:28"
+      }
+    },
+    {
+      "id": "leah-yawn",
+      "label": "Leah yawning",
+      "src": "/samples/leah-yawn.jpg",
+      "thumb": "/samples/thumbs/leah-yawn.jpg",
+      "width": 1500,
+      "height": 2000,
+      "tags": [
+        "close-up"
+      ],
+      "license": "Owner's photo, used with permission",
+      "author": "Leah's family (Pawp Atelier)",
+      "source": "",
+      "collection": "leah",
+      "meta": {
+        "takenAt": "2023-09-15T00:03:52"
+      }
+    },
+    {
+      "id": "leah-white-rug",
+      "label": "Leah on a white rug",
+      "src": "/samples/leah-white-rug.jpg",
+      "thumb": "/samples/thumbs/leah-white-rug.jpg",
+      "width": 1500,
+      "height": 2000,
+      "tags": [
+        "white on white",
+        "hard"
+      ],
+      "license": "Owner's photo, used with permission",
+      "author": "Leah's family (Pawp Atelier)",
+      "source": "",
+      "collection": "leah",
+      "meta": {
+        "takenAt": "2025-03-22T19:20:52"
+      }
+    },
+    {
+      "id": "leah-bed",
+      "label": "Leah in her bed",
+      "src": "/samples/leah-bed.jpg",
+      "thumb": "/samples/thumbs/leah-bed.jpg",
+      "width": 1500,
+      "height": 2000,
+      "tags": [
+        "clothes",
+        "busy bed"
+      ],
+      "license": "Owner's photo, used with permission",
+      "author": "Leah's family (Pawp Atelier)",
+      "source": "",
+      "collection": "leah",
+      "meta": {
+        "takenAt": "2025-12-27T19:27:58"
+      }
+    },
+    {
+      "id": "leah-sunset",
+      "label": "Leah at sunset",
+      "src": "/samples/leah-sunset.jpg",
+      "thumb": "/samples/thumbs/leah-sunset.jpg",
+      "width": 2000,
+      "height": 1500,
+      "tags": [
+        "legs in frame"
+      ],
+      "license": "Owner's photo, used with permission",
+      "author": "Leah's family (Pawp Atelier)",
+      "source": "",
+      "collection": "leah",
+      "meta": {
+        "takenAt": "2024-08-24T18:12:58"
+      }
+    },
+    {
+      "id": "leah-park",
+      "label": "Leah in the park",
+      "src": "/samples/leah-park.jpg",
+      "thumb": "/samples/thumbs/leah-park.jpg",
+      "width": 2000,
+      "height": 1500,
+      "tags": [
+        "two dogs",
+        "wide scene"
+      ],
+      "license": "Owner's photo, used with permission",
+      "author": "Leah's family (Pawp Atelier)",
+      "source": "",
+      "collection": "leah",
+      "meta": {
+        "takenAt": "2021-08-15T15:32:02"
+      }
+    },
+    {
+      "id": "kitten-look",
+      "label": "Kitten",
+      "src": "/samples/kitten-look.jpg",
+      "thumb": "/samples/thumbs/kitten-look.jpg",
+      "width": 1500,
+      "height": 2000,
+      "tags": [
+        "easy",
+        "portrait"
+      ],
+      "license": "CC0 1.0",
+      "author": "Saral Shots",
+      "source": "https://commons.wikimedia.org/wiki/File:Kitten_Looking.jpg",
+      "collection": "commons",
+      "meta": {
+        "takenAt": "2018-02-12T17:12:36"
+      }
+    },
+    {
+      "id": "dog-grass",
+      "label": "Dog on grass",
+      "src": "/samples/dog-grass.jpg",
+      "thumb": "/samples/thumbs/dog-grass.jpg",
+      "width": 1920,
+      "height": 1280,
+      "tags": [
+        "easy"
+      ],
+      "license": "CC0 1.0",
+      "author": "Joselodos",
+      "source": "https://commons.wikimedia.org/wiki/File:Dog_resting_on_the_grass.jpg",
+      "collection": "commons",
+      "meta": {
+        "takenAt": "2025-04-17T15:38:25"
+      }
+    },
+    {
+      "id": "staffy-puppy",
+      "label": "Staffy puppy",
+      "src": "/samples/staffy-puppy.jpg",
+      "thumb": "/samples/thumbs/staffy-puppy.jpg",
+      "width": 1920,
+      "height": 1909,
+      "tags": [
+        "dark background"
+      ],
+      "license": "CC0 1.0",
+      "author": "Olga Fučíková",
+      "source": "https://commons.wikimedia.org/wiki/File:Staffordshire-bull-terrier-puppy-fawn-2166763.jpg",
+      "collection": "commons",
+      "meta": {}
+    },
+    {
+      "id": "corgi-puppy",
+      "label": "Corgi puppy",
+      "src": "/samples/corgi-puppy.jpg",
+      "thumb": "/samples/thumbs/corgi-puppy.jpg",
+      "width": 1170,
+      "height": 1547,
+      "tags": [
+        "busy fabric"
+      ],
+      "license": "CC0 1.0",
+      "author": "Capersfish",
+      "source": "https://commons.wikimedia.org/wiki/File:8_week_old_corgi_girl.jpg",
+      "collection": "commons",
+      "meta": {
+        "takenAt": "2025-05-13T12:00:00"
+      }
+    },
+    {
+      "id": "golden-stick",
+      "label": "Golden with stick",
+      "src": "/samples/golden-stick.jpg",
+      "thumb": "/samples/thumbs/golden-stick.jpg",
+      "width": 1920,
+      "height": 1920,
+      "tags": [
+        "held object",
+        "fluffy fur"
+      ],
+      "license": "CC0 1.0",
+      "author": "Cheetyuh",
+      "source": "https://commons.wikimedia.org/wiki/File:Golden_Retriever_Chewing_A_Stick.jpg",
+      "collection": "commons",
+      "meta": {
+        "takenAt": "2022-09-21T12:00:00"
+      }
+    },
+    {
+      "id": "kitten-ball",
+      "label": "Kitten with ball",
+      "src": "/samples/kitten-ball.jpg",
+      "thumb": "/samples/thumbs/kitten-ball.jpg",
+      "width": 1886,
+      "height": 2000,
+      "tags": [
+        "nearby object"
+      ],
+      "license": "CC0 1.0",
+      "author": "Aiaikz",
+      "source": "https://commons.wikimedia.org/wiki/File:Ginger_kitten_with_an_orange_rubber_rugby.jpg",
+      "collection": "commons",
+      "meta": {
+        "takenAt": "2024-04-09T13:24:49"
+      }
+    },
+    {
+      "id": "two-shibas",
+      "label": "Two Shibas",
+      "src": "/samples/two-shibas.jpg",
+      "thumb": "/samples/thumbs/two-shibas.jpg",
+      "width": 1454,
+      "height": 1050,
+      "tags": [
+        "two pets"
+      ],
+      "license": "CC0 1.0",
+      "author": "Novoklimov",
+      "source": "https://commons.wikimedia.org/wiki/File:Two_Shiba_Inu_dogs.jpg",
+      "collection": "commons",
+      "meta": {
+        "takenAt": "2010-05-16T13:33:43"
+      }
+    },
+    {
+      "id": "dog-and-cat",
+      "label": "Dog and cat",
+      "src": "/samples/dog-and-cat.jpg",
+      "thumb": "/samples/thumbs/dog-and-cat.jpg",
+      "width": 1920,
+      "height": 1440,
+      "tags": [
+        "small subjects",
+        "wide scene"
+      ],
+      "license": "CC0 1.0",
+      "author": "Gerda Arendt",
+      "source": "https://commons.wikimedia.org/wiki/File:Dog_and_cat,_Arco,_Madeira.jpg",
+      "collection": "commons",
+      "meta": {
+        "takenAt": "2025-03-18T12:35:40"
+      }
+    },
+    {
+      "id": "shiba-hand",
+      "label": "Shiba and a hand",
+      "src": "/samples/shiba-hand.jpg",
+      "thumb": "/samples/thumbs/shiba-hand.jpg",
+      "width": 1125,
+      "height": 2000,
+      "tags": [
+        "hand in frame"
+      ],
+      "license": "CC0 1.0",
+      "author": "Waved",
+      "source": "https://commons.wikimedia.org/wiki/File:Shiba_Inu_Mutt_1.jpg",
+      "collection": "commons",
+      "meta": {
+        "takenAt": "2021-09-27T19:07:38"
+      }
+    }
+  ]
+}

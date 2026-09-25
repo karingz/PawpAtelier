@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { DESIGN_UNITS_PER_INCH, designSize, type ProductSpec } from '../config/products'
+import { designSize, type ProductSpec } from '../config/products'
 import { FONTS } from '../content/fonts'
 import { PALETTES, PATTERNS, SOLID_COLORS, getPalette, patternSwatch } from '../content/patterns'
+import { SAMPLES, type SampleDef } from '../content/samples'
 import { STICKERS, STICKER_CATEGORIES } from '../content/stickers'
 import { log } from '../debug/log'
 import { selectedLayer, useDesignStore, type PhotoLayer, type TextLayer } from '../store/designStore'
 import { applyLasso, removeBackground, resetLassoPreview, restoreBackground, useCutoutJobs, useLassoPreview } from './cutout/removeBackground'
+import { dateOptions, formatTakenAt, placeOptions, printQuality, readPhotoMeta, type PhotoMeta } from './photoMeta'
 import { PrintCanvas } from './PrintCanvas'
 import { loadImageSize } from './useHtmlImage'
 
@@ -233,6 +235,32 @@ function PhotoPanel({ spec }: { spec: ProductSpec }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const addLayer = useDesignStore((s) => s.addLayer)
 
+  const selected = useDesignStore(selectedLayer)
+
+  /** Place a photo (uploaded blob URL or a sample) centered on the print area. */
+  const addPhoto = async (src: string, name: string, meta: PhotoMeta, extra: Record<string, unknown> = {}) => {
+    const size = await loadImageSize(src)
+    const photo: PhotoLayer = {
+      id: crypto.randomUUID(),
+      kind: 'photo',
+      src,
+      naturalWidth: size.width,
+      naturalHeight: size.height,
+      crop: { x: 0, y: 0, width: 1, height: 1 },
+      ...fitToPrintArea(spec, size),
+      rotation: 0,
+      meta,
+    }
+    log.info('upload', `${name} ${size.width}x${size.height}`, {
+      product: spec.id,
+      dpi: printQuality(photo).dpi,
+      taken: meta.takenAt ?? 'unknown',
+      gps: meta.lat !== undefined,
+      ...extra,
+    })
+    addLayer(photo)
+  }
+
   const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -240,29 +268,19 @@ function PhotoPanel({ spec }: { spec: ProductSpec }) {
     // Blob URLs are kept for the session: undo can bring back a removed photo.
     const src = URL.createObjectURL(file)
     try {
-      const size = await loadImageSize(src)
-      const photo: PhotoLayer = {
-        id: crypto.randomUUID(),
-        kind: 'photo',
-        src,
-        naturalWidth: size.width,
-        naturalHeight: size.height,
-        crop: { x: 0, y: 0, width: 1, height: 1 },
-        ...fitToPrintArea(spec, size),
-        rotation: 0,
-      }
-      log.info('upload', `${file.name} ${size.width}x${size.height}, ${Math.round(file.size / 1024)} KB`, {
-        product: spec.id,
-        type: file.type,
-        effectiveDpi: effectiveDpi(photo),
-      })
-      addLayer(photo)
+      const meta = await readPhotoMeta(file)
+      await addPhoto(src, file.name, meta, { type: file.type, kb: Math.round(file.size / 1024) })
     } catch (err) {
       URL.revokeObjectURL(src)
       log.error('upload', `could not decode ${file.name}`, err)
       alert("That file couldn't be opened as an image.")
     }
   }
+
+  const addSample = (sample: SampleDef) =>
+    addPhoto(sample.src, `sample:${sample.id}`, sample.meta ?? {}, { tags: sample.tags }).catch((err) =>
+      log.error('upload', `sample ${sample.id} failed`, err),
+    )
 
   return (
     <div className="panel__body">
@@ -273,6 +291,122 @@ function PhotoPanel({ spec }: { spec: ProductSpec }) {
       <p className="app__note">
         Drag to move, pull the corners to resize, the top handle to rotate. The dashed line is the safe print area.
       </p>
+      {selected?.kind === 'photo' && <PhotoInfo key={selected.id} photo={selected} spec={spec} />}
+      <h3 className="panel__title">No photo handy? Borrow Leah, our shop dog 🐾</h3>
+      <SampleGrid samples={SAMPLES.filter((x) => x.collection === 'leah')} onPick={addSample} />
+      <h3 className="panel__title">…or one of her friends</h3>
+      <SampleGrid samples={SAMPLES.filter((x) => x.collection !== 'leah')} onPick={addSample} />
+    </div>
+  )
+}
+
+/** When/where the photo was taken (as one-tap text) and whether it will print sharply. */
+function PhotoInfo({ photo, spec }: { photo: PhotoLayer; spec: ProductSpec }) {
+  const addLayer = useDesignStore((s) => s.addLayer)
+  const meta = photo.meta ?? {}
+  const quality = printQuality(photo)
+  const dates = dateOptions(meta)
+  const taken = formatTakenAt(meta)
+  const hasGps = meta.lat !== undefined && meta.lon !== undefined
+  const [places, setPlaces] = useState<string[] | 'loading' | 'error' | null>(null)
+
+  const lookUp = () => {
+    setPlaces('loading')
+    placeOptions(meta.lat!, meta.lon!).then(setPlaces, (err) => {
+      log.warn('meta', 'place lookup failed', err)
+      setPlaces('error')
+    })
+  }
+
+  const addText = (text: string) => addLayer(newTextLayer(spec, { text, fontSize: designSize(spec).height * 0.11 }))
+
+  return (
+    <div className="photo-info">
+      <h3 className="panel__title">About this photo</h3>
+      <div className={`photo-info__row photo-info__quality photo-info__quality--${quality.level}`}>
+        <span aria-hidden>🖨</span>
+        <span>
+          Print quality: <b>{quality.label}</b> <span className="photo-info__muted">({quality.dpi} DPI at this size)</span>
+        </span>
+      </div>
+
+      {taken ? (
+        <>
+          <div className="photo-info__row">
+            <span aria-hidden>📅</span>
+            <span>Taken {taken}</span>
+          </div>
+          <OptionChips options={dates} onPick={addText} />
+        </>
+      ) : (
+        <div className="photo-info__row photo-info__muted">
+          <span aria-hidden>📅</span>
+          <span>No date in this photo</span>
+        </div>
+      )}
+
+      {hasGps ? (
+        <>
+          <div className="photo-info__row">
+            <span aria-hidden>📍</span>
+            {places === null && (
+              <button className="btn btn--small" onClick={lookUp}>
+                Show where it was taken
+              </button>
+            )}
+            {places === 'loading' && <span className="photo-info__muted">Finding the place…</span>}
+            {places === 'error' && (
+              <span>
+                Couldn't find the place.{' '}
+                <button className="btn btn--small" onClick={lookUp}>
+                  Retry
+                </button>
+              </span>
+            )}
+            {Array.isArray(places) && <span>{places.length ? 'Taken near' : 'No place name found'}</span>}
+          </div>
+          {Array.isArray(places) && <OptionChips options={places} onPick={addText} />}
+          {places === null && <p className="photo-info__fine">Looks up the photo's location on OpenStreetMap.</p>}
+          {Array.isArray(places) && places.length > 0 && <p className="photo-info__fine">Place data © OpenStreetMap contributors</p>}
+        </>
+      ) : (
+        <div className="photo-info__row photo-info__muted">
+          <span aria-hidden>📍</span>
+          <span>No location in this photo</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Tap a suggestion to add it to the design as text. */
+function OptionChips({ options, onPick }: { options: string[]; onPick: (text: string) => void }) {
+  if (!options.length) return null
+  return (
+    <div className="chips">
+      {options.map((o) => (
+        <button key={o} className="chip chip--add" onClick={() => onPick(o)} title="Add to design as text">
+          + {o}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function SampleGrid({ samples, onPick }: { samples: SampleDef[]; onPick: (s: SampleDef) => void }) {
+  return (
+    <div className="sample-grid">
+      {samples.map((sample) => (
+        <button
+          key={sample.id}
+          className="sample-grid__item"
+          onClick={() => onPick(sample)}
+          title={import.meta.env.DEV ? `${sample.label}: tests ${sample.tags.join(', ')}` : sample.label}
+          aria-label={`Use sample photo: ${sample.label}`}
+        >
+          <img src={sample.thumb} alt="" loading="lazy" />
+        </button>
+      ))}
     </div>
   )
 }
@@ -325,22 +459,7 @@ function TextPanel({ spec }: { spec: ProductSpec }) {
   const { addLayer, updateLayer } = useDesignStore.getState()
   const text = selected?.kind === 'text' ? selected : null
 
-  const add = () => {
-    const { width, height } = designSize(spec)
-    const layer: TextLayer = {
-      id: crypto.randomUUID(),
-      kind: 'text',
-      text: 'My best friend',
-      fontId: 'fredoka',
-      fontSize: height * 0.16,
-      fill: '#3b2f2f',
-      outline: '#ffffff',
-      x: width / 2,
-      y: height * 0.78,
-      rotation: 0,
-    }
-    addLayer(layer)
-  }
+  const add = () => addLayer(newTextLayer(spec))
 
   return (
     <div className="panel__body">
@@ -502,6 +621,24 @@ function BackgroundPanel() {
   )
 }
 
+/** A new text layer in the house style, low and centered on the print. */
+function newTextLayer(spec: ProductSpec, overrides: Partial<TextLayer> = {}): TextLayer {
+  const { width, height } = designSize(spec)
+  return {
+    id: crypto.randomUUID(),
+    kind: 'text',
+    text: 'My best friend',
+    fontId: 'fredoka',
+    fontSize: height * 0.16,
+    fill: '#3b2f2f',
+    outline: '#ffffff',
+    x: width / 2,
+    y: height * 0.8,
+    rotation: 0,
+    ...overrides,
+  }
+}
+
 /** Fit the photo to 90% of the print height, centered (the wrap's center faces front). */
 function fitToPrintArea(spec: ProductSpec, size: { width: number; height: number }) {
   const design = designSize(spec)
@@ -513,9 +650,4 @@ function fitToPrintArea(spec: ProductSpec, size: { width: number; height: number
     width,
     height: width * (size.height / size.width),
   }
-}
-
-/** Source pixels per printed inch at the photo's current size. */
-function effectiveDpi(p: PhotoLayer) {
-  return Math.round((p.naturalWidth * p.crop.width) / (p.width / DESIGN_UNITS_PER_INCH))
 }

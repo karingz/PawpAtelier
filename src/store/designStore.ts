@@ -3,6 +3,7 @@ import { log } from '../debug/log'
 import { PRODUCTS } from '../config/products'
 import { applyCropBox, visibleBox, type Box } from '../editor/crop'
 import type { CutoutPrompt } from '../editor/cutout/protocol'
+import type { PhotoMeta } from '../editor/photoMeta'
 
 /** Normalized (0..1) region of the source image that is shown. */
 export type Crop = { x: number; y: number; width: number; height: number }
@@ -20,6 +21,8 @@ export type PhotoLayer = Placement & {
   height: number
   /** Set when `src` is a background-removed cutout: the photo it was made from. */
   originalSrc?: string
+  /** When/where it was taken, from the file's EXIF (browser-only, see photoMeta.ts). */
+  meta?: PhotoMeta
 }
 
 export type StickerLayer = Placement & {

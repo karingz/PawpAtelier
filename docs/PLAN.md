@@ -90,6 +90,12 @@ Must be done before the shop takes real orders.
   - BRIA RMBG-1.4 (one-click background removal, `src/editor/cutout/bgRemoval.worker.ts`):
     switch to BiRefNet HR-matting (MIT) on a GPU server, or buy a BRIA commercial license.
 - [ ] Always build the live site with `PAWP_LIVE=1 npm run build`.
+- [ ] **Place-name lookup** (photo info card) uses OpenStreetMap's free public Nominatim + Overpass
+  APIs: fair-use only (≤1 request/s, no heavy use; "commercial applications… might have
+  access withdrawn"). Move to a paid geocoder (e.g. OpenCage, LocationIQ, Mapbox) or self-host
+  before launch. Keep the "© OpenStreetMap contributors" credit if OSM data stays.
+- [ ] Strip photo metadata (date/GPS in `PhotoLayer.meta` and in uploaded originals) before
+  designs are stored with an order.
 
 ## 8. Constraints / Risks
 - **Mobile first.** Most traffic is expected from Instagram on phones.
