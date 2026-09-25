@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import gsap from 'gsap'
 import * as THREE from 'three'
+import { gesture } from './gestures'
 
 /** A region the camera should frame: center plus the width/height that must fit on screen. */
 export type Framing = {
@@ -29,8 +30,14 @@ function poseFor(framing: Framing, fovDeg: number, aspect: number) {
   return { look, pos: look.clone().addScaledVector(VIEW_DIR, distance) }
 }
 
-/** Drives the default camera: snaps on first frame and on resize, flies when the framing key changes. */
-export function CameraRig({ framing, duration = 1.1 }: { framing: Framing; duration?: number }) {
+/** Camera distance multiplier limits for wheel / pinch zoom (1 = the framing). */
+const ZOOM_LIMITS: [number, number] = [0.45, 1.5]
+
+/**
+ * Drives the default camera: snaps on first frame and on resize, flies when the framing key
+ * changes. With `zoomable`, wheel / pinch dolly the camera in and out with a springy clamp.
+ */
+export function CameraRig({ framing, duration = 1.1, zoomable = false }: { framing: Framing; duration?: number; zoomable?: boolean }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height))
   const goal = useMemo(() => poseFor(framing, camera.fov, aspect), [framing, camera.fov, aspect])
@@ -67,12 +74,115 @@ export function CameraRig({ framing, duration = 1.1 }: { framing: Framing; durat
 
   useEffect(() => () => void flight.current?.kill(), [])
 
-  useFrame(() => {
+  const zoom = useZoomGestures(zoomable, framing.key)
+
+  useFrame((_, delta) => {
     const cur = current.current
     if (!cur) return
-    camera.position.copy(cur.pos)
+    const z = zoom.step(delta)
+    camera.position.copy(cur.look).addScaledVector(cur.pos.clone().sub(cur.look), z)
     camera.lookAt(cur.look)
   })
 
   return null
+}
+
+function clamp(x: number, [min, max]: [number, number]) {
+  return Math.min(max, Math.max(min, x))
+}
+
+/** Resistance past the limits, in log space so zooming in and out feel the same. */
+function rubberBand(x: number, limits: [number, number], give = 0.35) {
+  const lx = Math.log(x)
+  const [lo, hi] = limits.map(Math.log)
+  if (lx > hi) return Math.exp(hi + (1 - 1 / ((lx - hi) / give + 1)) * give)
+  if (lx < lo) return Math.exp(lo - (1 - 1 / ((lo - lx) / give + 1)) * give)
+  return x
+}
+
+/**
+ * Wheel and two-finger pinch zoom on the 3D canvas. `raw` follows the input (it may go past the
+ * limits, shown rubber-banded); once input stops it is clamped and the value springs back.
+ * Resets when the framing changes (e.g. back to the shop).
+ */
+function useZoomGestures(enabled: boolean, resetKey: string) {
+  const dom = useThree((s) => s.gl.domElement)
+  const state = useRef({ raw: 1, x: 1, v: 0, settleAt: 0 })
+
+  useEffect(() => {
+    state.current.raw = 1
+  }, [resetKey])
+
+  useEffect(() => {
+    if (!enabled) {
+      state.current.raw = 1
+      return
+    }
+    const s = state.current
+    const settleSoon = () => (s.settleAt = performance.now() + 160)
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const factor = Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0012))
+      s.raw = clamp(s.raw * factor, [ZOOM_LIMITS[0] * 0.6, ZOOM_LIMITS[1] * 1.6])
+      settleSoon()
+    }
+
+    const pointers = new Map<number, { x: number; y: number }>()
+    let pinch: { dist: number; raw: number } | null = null
+    const dist = () => {
+      const [a, b] = [...pointers.values()]
+      return Math.hypot(a.x - b.x, a.y - b.y)
+    }
+    const onDown = (e: PointerEvent) => {
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pointers.size === 2) {
+        pinch = { dist: dist(), raw: s.raw }
+        gesture.pinching = true
+      }
+    }
+    const onMove = (e: PointerEvent) => {
+      if (!pointers.has(e.pointerId)) return
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (pinch && pointers.size >= 2) s.raw = (pinch.raw * pinch.dist) / Math.max(1, dist())
+    }
+    const onUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId)
+      if (pointers.size < 2 && pinch) {
+        pinch = null
+        gesture.pinching = false
+        settleSoon()
+      }
+    }
+    dom.addEventListener('wheel', onWheel, { passive: false })
+    dom.addEventListener('pointerdown', onDown)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      dom.removeEventListener('wheel', onWheel)
+      dom.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      gesture.pinching = false
+    }
+  }, [dom, enabled])
+
+  return {
+    /** Advance the spring; returns the camera distance multiplier to use this frame. */
+    step(delta: number) {
+      const s = state.current
+      const dt = Math.min(delta, 1 / 30)
+      if (s.settleAt && performance.now() > s.settleAt && !gesture.pinching) {
+        s.raw = clamp(s.raw, ZOOM_LIMITS)
+        s.settleAt = 0
+      }
+      const target = rubberBand(s.raw, ZOOM_LIMITS)
+      // Slightly underdamped: a small bounce when it springs back from past a limit.
+      s.v += (190 * (target - s.x) - 20 * s.v) * dt
+      s.x += s.v * dt
+      return s.x
+    },
+  }
 }

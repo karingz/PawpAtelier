@@ -13,6 +13,13 @@ npm run build    # type-check + production build
 Open http://localhost:5173, tap a product (or its card) to fly in, upload a pet photo,
 drag/resize/rotate/crop it on the flat canvas and watch the product update live. Drag the
 product to spin it; let go to see it spring back. "← Shop" flies back out.
+
+Editing view controls:
+- **3D view:** drag to turn; scroll or pinch to zoom (springs back past the limits).
+- **2D canvas:** scroll or pinch to zoom (up to 800%); drag empty space, **Space + drag**,
+  middle-mouse drag or two fingers to pan; **− / Fit / +** buttons in the corner.
+- **Panel size:** drag the handle between the 3D view and the editor (edge on desktop, grab bar
+  on phones); double-click resets. Remembered per browser.
 Code edits hot-reload instantly.
 
 To stop: press `Ctrl+C` in the terminal running it. If that terminal is gone but the port is

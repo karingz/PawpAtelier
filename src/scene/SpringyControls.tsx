@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { Group } from 'three'
 import { log } from '../debug/log'
+import { gesture } from './gestures'
 
 type Props = {
   children: ReactNode
@@ -65,6 +66,12 @@ export function SpringyControls({
     }
     const onMove = (e: PointerEvent) => {
       if (!s.dragging || e.pointerId !== s.pointerId) return
+      if (gesture.pinching) {
+        // Two fingers are zooming: don't also spin, and don't jump when the pinch ends.
+        s.startX = e.clientX
+        s.startY = e.clientY
+        return
+      }
       s.rawSpin += (e.clientX - s.startX) * speed
       s.rawTilt += (e.clientY - s.startY) * speed
       s.startX = e.clientX

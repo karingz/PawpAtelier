@@ -67,7 +67,7 @@ button {
 
 .app__viewer {
   position: relative;
-  height: 52vh;
+  height: var(--viewer-h, 52vh);
   min-height: 280px;
   /* Let the 3D canvas shrink when the editor opens (flex items default to min-width: auto) */
   min-width: 0;
@@ -180,13 +180,12 @@ button {
   }
 
   .app__viewer {
-    flex: 1.2;
+    flex: 1;
     height: auto;
   }
 
   .app__editor {
-    flex: 1;
-    max-width: 560px;
+    flex: 0 0 var(--editor-w, min(560px, 45vw));
     border-top: none;
     border-left: 1px solid var(--line);
     border-radius: 20px 0 0 20px;
@@ -636,4 +635,106 @@ button {
 
 .chip--add {
   border-style: dashed;
+}
+
+/* 2D canvas: zoom/pan viewport */
+.print-canvas__stage {
+  position: relative;
+  touch-action: none;
+}
+
+.print-canvas__print {
+  display: none;
+}
+
+.zoom-controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  box-shadow: 0 1px 6px rgb(59 47 47 / 0.18);
+}
+
+.zoom-controls__btn {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.zoom-controls__btn:hover:not(:disabled) {
+  background: var(--cream);
+}
+
+.zoom-controls__btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.zoom-controls__level {
+  min-width: 52px;
+}
+
+/* Resize handle between the 3D view and the editor */
+.splitter {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  margin: -9px 0 -9px;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.splitter__grip {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.6);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.splitter:hover .splitter__grip,
+.is-resizing .splitter__grip {
+  background: var(--accent);
+  transform: scale(1.15);
+}
+
+.is-resizing,
+.is-resizing * {
+  user-select: none;
+  cursor: inherit !important;
+}
+
+@media (min-width: 900px) {
+  .splitter {
+    width: 18px;
+    height: auto;
+    margin: 0 -9px 0 -9px;
+    cursor: col-resize;
+  }
+
+  .splitter__grip {
+    width: 5px;
+    height: 44px;
+  }
+}
+
+.print-canvas__stage--pan,
+.print-canvas__stage--pan canvas {
+  cursor: grab !important;
 }

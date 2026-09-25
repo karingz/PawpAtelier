@@ -23,12 +23,22 @@ const MIN_SIZE = 20
 const ACCENT = '#d9607f'
 /** Pattern tiles are rendered at this many pixels per design unit (texture is ~2.4). */
 const PATTERN_DENSITY = 3
+const MIN_ZOOM = 1
+const MAX_ZOOM = 8
+/** Pointer travel (px) that turns a press on empty canvas into a pan instead of a tap. */
+const PAN_SLOP = 4
 
 type Props = { spec: ProductSpec }
 
+/** Zoom factor and pan offset (screen px) of the editing view; zoom 1 = whole print area. */
+type View = { zoom: number; x: number; y: number }
+
 /**
- * Flat print-area editor. The "print" layer is exactly what goes on the product and is
- * shared with the 3D scene as a live texture; guides and handles live on a separate layer.
+ * Flat print-area editor.
+ *
+ * Two stages render the same design: a visible one you edit (zoom/pan freely), and a hidden
+ * fixed-size one at texture resolution that is shared with the 3D product. Keeping the print
+ * separate means zooming the editor never zooms the print, and the texture never resizes.
  */
 export function PrintCanvas({ spec }: Props) {
   const design = designSize(spec)
@@ -37,6 +47,8 @@ export function PrintCanvas({ spec }: Props) {
   const printLayerRef = useRef<Konva.Layer>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   const [displayWidth, setDisplayWidth] = useState(0)
+  const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 })
+  const spaceHeld = useSpaceKey()
 
   const { background, layers } = useDesignStore((s) => s.design)
   const selectedId = useDesignStore((s) => s.selectedId)
@@ -48,8 +60,6 @@ export function PrintCanvas({ spec }: Props) {
   const updateLayer = useDesignStore((s) => s.updateLayer)
   const selected = useDesignStore(selectedLayer)
 
-  // In lasso mode the photo shows its original (uncut) image so you can see what to circle.
-  const shownSrc = (l: Exclude<Layer, TextLayer>) => (lasso?.layerId === l.id && l.kind === 'photo' ? (l.originalSrc ?? l.src) : l.src)
   const srcs = useMemo(
     () => layers.flatMap((l) => (l.kind === 'text' ? [] : [lasso?.layerId === l.id && l.kind === 'photo' ? (l.originalSrc ?? l.src) : l.src])),
     [layers, lasso?.layerId],
@@ -58,49 +68,46 @@ export function PrintCanvas({ spec }: Props) {
   const { images, complete: imagesReady } = useImages(srcs)
   const fontsVersion = useFontsVersion(layers)
 
-  const scale = displayWidth / design.width
-  const displayHeight = design.height * scale
+  const baseScale = displayWidth / design.width
+  const displayHeight = design.height * baseScale
+  /** Screen px per design unit in the editing view. */
+  const scale = baseScale * view.zoom
   const cropPhoto = cropDraft && selected?.kind === 'photo' && images.get(selected.src) ? selected : null
+  const content = { background, layers, design, spec, images, fontsVersion, lasso, cropPhoto, cropDraft }
 
-  // The print layer is only worth publishing once every image has decoded.
+  // The print is only worth publishing once every image has decoded.
   const complete = useRef(false)
   useEffect(() => {
     complete.current = imagesReady
   })
 
-  // Track the container width so the stage stays responsive.
+  // Track the container width so the stage stays responsive; keep the view's zoom and
+  // relative pan when the panel is resized.
   useLayoutEffect(() => {
     const el = containerRef.current
     if (!el) return
     const observer = new ResizeObserver(([entry]) => {
-      setDisplayWidth(Math.floor(entry.contentRect.width))
+      const width = Math.floor(entry.contentRect.width)
+      setDisplayWidth((old) => {
+        if (old && width !== old) setView((v) => ({ ...v, x: (v.x * width) / old, y: (v.y * width) / old }))
+        return width
+      })
     })
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
 
-  // Keep the print layer's backing canvas at preview-texture resolution regardless of
-  // on-screen size.
-  useEffect(() => {
-    const layer = printLayerRef.current
-    if (!layer || displayWidth === 0) return
-    layer.getCanvas().setPixelRatio(spec.previewTextureWidth / displayWidth)
-    layer.batchDraw()
-    const c = layer.getCanvas()._canvas
-    log.debug('editor', `print canvas ${c.width}x${c.height} (display ${displayWidth}px)`)
-  }, [displayWidth, spec.previewTextureWidth])
-
-  // Publish finished frames to the 3D scene. The layer's own canvas is cleared and resized
-  // whenever the stage resizes, so the product samples a fixed-size copy made after each
-  // complete draw instead; otherwise it can catch a blank canvas and flash black.
-  // The copy outlives this editor, so the product keeps its print in the shop view.
-  const stageReady = displayWidth > 0
+  // Publish every finished print frame to the 3D product (a fixed-size copy that outlives
+  // this editor, so the product keeps its print in the shop view).
   useEffect(() => {
     const layer = printLayerRef.current
     if (!layer) return
     const texture = printTextureCanvas(spec)
     const ctx = texture.getContext('2d')!
     const { markPrintDirty } = useDesignStore.getState()
+    // Render the hidden stage straight at texture resolution.
+    layer.getCanvas().setPixelRatio(texture.width / design.width)
+    log.debug('editor', `print stage ${layer.getCanvas()._canvas.width}x${layer.getCanvas()._canvas.height}`)
 
     const publish = () => {
       if (!complete.current) return
@@ -112,9 +119,9 @@ export function PrintCanvas({ spec }: Props) {
     return () => {
       layer.off('draw', publish)
     }
-  }, [stageReady, spec])
+  }, [spec, design.width])
 
-  // Attach the transform handles to the selected layer (hidden while cropping).
+  // Attach the transform handles to the selected layer (hidden while cropping / lassoing).
   useEffect(() => {
     const tr = transformerRef.current
     const stage = stageRef.current
@@ -122,12 +129,127 @@ export function PrintCanvas({ spec }: Props) {
     const node = !editing && selectedId ? stage.findOne(`#${selectedId}`) : undefined
     tr.nodes(node ? [node] : [])
     tr.getLayer()?.batchDraw()
-  }, [layers, selectedId, editing, images, fontsVersion])
+  }, [layers, selectedId, editing, images, fontsVersion, displayWidth])
 
-  const deselectOnEmpty = (e: Konva.KonvaEventObject<PointerEvent>) => {
-    if (editing) return
-    if (e.target === e.target.getStage() || e.target.name() === 'background') select(null)
+  // ------------------------------------------------------------------------------------------
+  // View: zoom around a point, pan, keep the print area on screen.
+
+  const clampView = (v: View): View => {
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, v.zoom))
+    const w = design.width * baseScale * zoom
+    const h = design.height * baseScale * zoom
+    const clampAxis = (pos: number, content: number, frame: number) =>
+      content <= frame ? (frame - content) / 2 : Math.min(0, Math.max(frame - content, pos))
+    return { zoom, x: clampAxis(v.x, w, displayWidth), y: clampAxis(v.y, h, displayHeight) }
   }
+
+  /** Zoom to `zoom`, keeping the design point under screen point `p` where it is. */
+  const zoomAt = (p: { x: number; y: number }, zoom: number, from: View = view) => {
+    const oldScale = baseScale * from.zoom
+    const next = clampView({ ...from, zoom })
+    const newScale = baseScale * next.zoom
+    const wx = (p.x - from.x) / oldScale
+    const wy = (p.y - from.y) / oldScale
+    return clampView({ zoom: next.zoom, x: p.x - wx * newScale, y: p.y - wy * newScale })
+  }
+
+  const onWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
+    e.evt.preventDefault()
+    const p = stageRef.current?.getPointerPosition()
+    if (!p) return
+    // Trackpad pinch arrives as ctrl+wheel with small deltas; mouse wheels as big steps.
+    const factor = Math.exp(-e.evt.deltaY * (e.evt.ctrlKey ? 0.01 : 0.0015))
+    setView((v) => zoomAt(p, v.zoom * factor, v))
+  }
+
+  const zoomBy = (factor: number) =>
+    setView((v) => (factor === 0 ? clampView({ zoom: 1, x: 0, y: 0 }) : zoomAt({ x: displayWidth / 2, y: displayHeight / 2 }, v.zoom * factor, v)))
+
+  /**
+   * Pan: drag on empty canvas, or anywhere with Space held / the middle mouse button (for when
+   * a zoomed-in photo fills the view). A plain tap on empty canvas deselects.
+   */
+  const onStagePointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    const empty = e.target === e.target.getStage() || e.target.name() === 'background'
+    const panAnywhere = spaceHeld || e.evt.button === 1
+    if ((!empty && !panAnywhere) || pinch.current) return
+    if (e.evt.button === 1) e.evt.preventDefault()
+    const start = { x: e.evt.clientX, y: e.evt.clientY, view }
+    let moved = false
+    const move = (ev: PointerEvent) => {
+      if (pinch.current) return
+      const dx = ev.clientX - start.x
+      const dy = ev.clientY - start.y
+      if (!moved && Math.hypot(dx, dy) < PAN_SLOP) return
+      moved = true
+      setView(clampView({ ...start.view, x: start.view.x + dx, y: start.view.y + dy }))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      if (!moved && empty && !panAnywhere && !editing && !pinch.current) select(null)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+  }
+
+  // Two-finger pinch zoom + pan (touch), on top of whatever Konva is doing.
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{ dist: number; mid: { x: number; y: number }; view: View } | null>(null)
+  const viewRef = useRef(view)
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const local = (e: PointerEvent) => {
+      const r = el.getBoundingClientRect()
+      return { x: e.clientX - r.left, y: e.clientY - r.top }
+    }
+    const measure = () => {
+      const [a, b] = [...pointers.current.values()]
+      return { dist: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }
+    }
+    const down = (e: PointerEvent) => {
+      pointers.current.set(e.pointerId, local(e))
+      if (pointers.current.size === 2) {
+        // Second finger: whatever the first one was dragging stops; this is a pinch now.
+        stageRef.current?.find((n: Konva.Node) => n.isDragging()).forEach((n) => n.stopDrag())
+        pinch.current = { ...measure(), view: viewRef.current }
+      }
+    }
+    const move = (e: PointerEvent) => {
+      if (!pointers.current.has(e.pointerId)) return
+      pointers.current.set(e.pointerId, local(e))
+      const start = pinch.current
+      if (!start || pointers.current.size < 2) return
+      const now = measure()
+      const zoomed = zoomAtRef.current(start.mid, start.view.zoom * (now.dist / Math.max(1, start.dist)), start.view)
+      setView(clampRef.current({ ...zoomed, x: zoomed.x + now.mid.x - start.mid.x, y: zoomed.y + now.mid.y - start.mid.y }))
+    }
+    const up = (e: PointerEvent) => {
+      pointers.current.delete(e.pointerId)
+      if (pointers.current.size < 2) pinch.current = null
+    }
+    el.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', up, true)
+    return () => {
+      el.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointermove', move, true)
+      window.removeEventListener('pointerup', up, true)
+      window.removeEventListener('pointercancel', up, true)
+    }
+  }, [])
+  // Latest view/zoom/clamp for the native listeners above (they're registered once).
+  const zoomAtRef = useRef(zoomAt)
+  const clampRef = useRef(clampView)
+  useLayoutEffect(() => {
+    viewRef.current = view
+    zoomAtRef.current = zoomAt
+    clampRef.current = clampView
+  })
 
   /** Fold the node's gesture (drag / scale / rotate) back into the layer. */
   const commit = (layer: Layer) => (e: Konva.KonvaEventObject<Event>) => {
@@ -147,9 +269,24 @@ export function PrintCanvas({ spec }: Props) {
     }
   }
 
+  const handlersFor = (layer: Layer): NodeHandlers => ({
+    id: layer.id,
+    // With Space held, dragging pans the view instead of moving things.
+    draggable: !editing && !spaceHeld,
+    listening: !editing,
+    onPointerDown: () => select(layer.id),
+    onDragEnd: commit(layer),
+    onTransformEnd: commit(layer),
+  })
+
+  const stageReady = displayWidth > 0
   return (
     <div className="print-canvas">
-      <div ref={containerRef} className="print-canvas__stage" style={{ height: displayHeight || undefined }}>
+      <div
+        ref={containerRef}
+        className={`print-canvas__stage${spaceHeld ? ' print-canvas__stage--pan' : ''}`}
+        style={{ height: displayHeight || undefined }}
+      >
         {stageReady && (
           <Stage
             ref={stageRef}
@@ -157,50 +294,13 @@ export function PrintCanvas({ spec }: Props) {
             height={displayHeight}
             scaleX={scale}
             scaleY={scale}
-            onPointerDown={deselectOnEmpty}
+            x={view.x}
+            y={view.y}
+            onPointerDown={onStagePointerDown}
+            onWheel={onWheel}
           >
-            <KLayer ref={printLayerRef}>
-              <BackgroundNode background={background} width={design.width} height={design.height} baseColor={spec.color} />
-              {layers.map((layer) => {
-                if (cropPhoto && layer.id === cropPhoto.id) {
-                  // Live crop preview on the product: the full image clipped to the draft box.
-                  return (
-                    <PhotoFrame key={layer.id} photo={cropPhoto} listening={false}>
-                      <Group clipX={cropDraft!.x} clipY={cropDraft!.y} clipWidth={cropDraft!.width} clipHeight={cropDraft!.height}>
-                        <FullImage photo={cropPhoto} image={images.get(cropPhoto.src)!} />
-                      </Group>
-                    </PhotoFrame>
-                  )
-                }
-                const handlers = {
-                  id: layer.id,
-                  draggable: !editing,
-                  listening: !editing,
-                  onPointerDown: () => select(layer.id),
-                  onDragEnd: commit(layer),
-                  onTransformEnd: commit(layer),
-                }
-                if (layer.kind === 'text') {
-                  return <TextNode key={`${layer.id}:${fontsVersion}`} layer={layer} {...handlers} />
-                }
-                const image = images.get(shownSrc(layer))
-                if (!image) return null
-                return (
-                  <KImage
-                    key={layer.id}
-                    {...handlers}
-                    image={image}
-                    crop={layer.kind === 'photo' ? sourceCrop(layer) : undefined}
-                    x={layer.x}
-                    y={layer.y}
-                    width={layer.width}
-                    height={layer.height}
-                    offsetX={layer.width / 2}
-                    offsetY={layer.height / 2}
-                    rotation={layer.rotation}
-                  />
-                )
-              })}
+            <KLayer>
+              <DesignContent {...content} handlersFor={handlersFor} />
             </KLayer>
             <KLayer>
               <Rect
@@ -246,14 +346,122 @@ export function PrintCanvas({ spec }: Props) {
             </KLayer>
           </Stage>
         )}
+        {stageReady && (
+          <div className="zoom-controls" onPointerDown={(e) => e.stopPropagation()}>
+            <button className="zoom-controls__btn" onClick={() => zoomBy(1 / 1.5)} disabled={view.zoom <= MIN_ZOOM} aria-label="Zoom out">
+              −
+            </button>
+            <button
+              className="zoom-controls__btn zoom-controls__level"
+              onClick={() => zoomBy(0)}
+              title="Fit the whole print area. Scroll or pinch to zoom; Space + drag (or middle mouse, or two fingers) to move around."
+            >
+              {view.zoom <= 1.001 ? 'Fit' : `${Math.round(view.zoom * 100)}%`}
+            </button>
+            <button className="zoom-controls__btn" onClick={() => zoomBy(1.5)} disabled={view.zoom >= MAX_ZOOM} aria-label="Zoom in">
+              +
+            </button>
+          </div>
+        )}
       </div>
       <div className="print-canvas__labels">
         <span>← {spec.handle ? 'handle side' : 'back seam'}</span>
         <span>front</span>
         <span>{spec.handle ? 'handle side' : 'back seam'} →</span>
       </div>
+
+      {/* The print itself: fixed size, never zoomed, feeds the 3D texture. */}
+      <div className="print-canvas__print" aria-hidden>
+        <Stage width={design.width} height={design.height} listening={false}>
+          <KLayer ref={printLayerRef} listening={false}>
+            <DesignContent {...content} />
+          </KLayer>
+        </Stage>
+      </div>
     </div>
   )
+}
+
+type ContentProps = {
+  background: Background
+  layers: Layer[]
+  design: { width: number; height: number }
+  spec: ProductSpec
+  images: Map<string, HTMLImageElement>
+  fontsVersion: number
+  lasso: LassoState | null
+  cropPhoto: PhotoLayer | null
+  cropDraft: Box | null
+  /** Interactive (editing view) only. */
+  handlersFor?: (layer: Layer) => NodeHandlers
+}
+
+/** Background + layers, exactly as printed. Rendered by both the editing view and the print. */
+function DesignContent({ background, layers, design, spec, images, fontsVersion, lasso, cropPhoto, cropDraft, handlersFor }: ContentProps) {
+  return (
+    <>
+      <BackgroundNode background={background} width={design.width} height={design.height} baseColor={spec.color} />
+      {layers.map((layer) => {
+        if (cropPhoto && cropDraft && layer.id === cropPhoto.id) {
+          // Live crop preview: the full image clipped to the draft box.
+          return (
+            <PhotoFrame key={layer.id} photo={cropPhoto} listening={false}>
+              <Group clipX={cropDraft.x} clipY={cropDraft.y} clipWidth={cropDraft.width} clipHeight={cropDraft.height}>
+                <FullImage photo={cropPhoto} image={images.get(cropPhoto.src)!} />
+              </Group>
+            </PhotoFrame>
+          )
+        }
+        const handlers = handlersFor?.(layer)
+        if (layer.kind === 'text') {
+          return <TextNode key={`${layer.id}:${fontsVersion}`} layer={layer} {...handlers} />
+        }
+        // In lasso mode the photo shows its original (uncut) image so you can see what to circle.
+        const src = lasso?.layerId === layer.id && layer.kind === 'photo' ? (layer.originalSrc ?? layer.src) : layer.src
+        const image = images.get(src)
+        if (!image) return null
+        return (
+          <KImage
+            key={layer.id}
+            {...handlers}
+            image={image}
+            crop={layer.kind === 'photo' ? sourceCrop(layer) : undefined}
+            x={layer.x}
+            y={layer.y}
+            width={layer.width}
+            height={layer.height}
+            offsetX={layer.width / 2}
+            offsetY={layer.height / 2}
+            rotation={layer.rotation}
+          />
+        )
+      })}
+    </>
+  )
+}
+
+/** True while the Space bar is held (and focus isn't in a text field): drag-to-pan mode. */
+function useSpaceKey() {
+  const [held, setHeld] = useState(false)
+  useEffect(() => {
+    const typing = (e: KeyboardEvent) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement
+    const down = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || typing(e)) return
+      e.preventDefault() // don't scroll the page
+      setHeld(true)
+    }
+    const up = (e: KeyboardEvent) => e.code === 'Space' && setHeld(false)
+    const blur = () => setHeld(false)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    window.addEventListener('blur', blur)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      window.removeEventListener('blur', blur)
+    }
+  }, [])
+  return held
 }
 
 /** The product's fixed-size texture canvas, created on first use. */
@@ -348,7 +556,7 @@ type NodeHandlers = {
 }
 
 /** Text centered on (x, y): its offset is set from the measured size after each render. */
-function TextNode({ layer, ...handlers }: { layer: TextLayer } & NodeHandlers) {
+function TextNode({ layer, ...handlers }: { layer: TextLayer } & Partial<NodeHandlers>) {
   const ref = useRef<Konva.Text>(null)
   useLayoutEffect(() => {
     const n = ref.current

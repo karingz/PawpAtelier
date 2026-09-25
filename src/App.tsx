@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { PRODUCTS, getProduct } from './config/products'
 import { Editor } from './editor/Editor'
+import { PanelSplitter } from './editor/PanelSplitter'
+import { usePanelSizes } from './editor/panelSizes'
 import { Scene } from './scene/Scene'
 import { useDesignStore } from './store/designStore'
 
@@ -12,6 +14,8 @@ export default function App() {
   const viewerRef = useRef<HTMLElement>(null)
   const shopRef = useRef<HTMLElement>(null)
   const shopInset = useCoveredFraction(viewerRef, shopRef, view === 'shop')
+  const mainRef = useRef<HTMLElement>(null)
+  const panel = usePanelSizes()
 
   useEditorShortcuts()
 
@@ -27,13 +31,20 @@ export default function App() {
         {view === 'edit' && <span className="app__product">{spec.name}</span>}
       </header>
 
-      <main className="app__main">
+      <main ref={mainRef} className="app__main" style={view === 'edit' ? panel.style : undefined}>
         <section ref={viewerRef} className="app__viewer">
           <Scene onReady={() => setReady(true)} bottomInset={view === 'shop' ? shopInset : 0} />
-          <p className="app__hint">{view === 'shop' ? 'Tap something to make it yours' : 'Drag to turn it'}</p>
+          <p className="app__hint">{view === 'shop' ? 'Tap something to make it yours' : 'Drag to turn · scroll or pinch to zoom'}</p>
         </section>
 
-        {view === 'shop' ? <ShopSheet ref={shopRef} /> : <Editor key={spec.id} spec={spec} />}
+        {view === 'shop' ? (
+          <ShopSheet ref={shopRef} />
+        ) : (
+          <>
+            <PanelSplitter mainRef={mainRef} setSizes={panel.setSizes} />
+            <Editor key={spec.id} spec={spec} />
+          </>
+        )}
       </main>
 
       <LoadingScreen ready={ready} />

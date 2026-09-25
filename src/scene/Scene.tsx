@@ -88,7 +88,7 @@ export function Scene({ onReady, bottomInset = 0 }: Props) {
         <Lightformer form="circle" intensity={1.5} position={[0, 1, -4]} scale={2} />
       </Environment>
 
-      <CameraRig framing={framing} />
+      <CameraRig framing={framing} zoomable={view === 'edit'} />
 
       {placed.map((p) => (
         <ProductSlot key={p.spec.id} spec={p.spec} position={[p.x, 0, 0]} rest={p.rest} />
