@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { log } from '../debug/log'
 import { PRODUCTS } from '../config/products'
 import { applyCropBox, visibleBox, type Box } from '../editor/crop'
+import type { CutoutPrompt } from '../editor/cutout/protocol'
 
 /** Normalized (0..1) region of the source image that is shown. */
 export type Crop = { x: number; y: number; width: number; height: number }
@@ -58,6 +59,9 @@ export type Design = {
 
 const HISTORY_LIMIT = 100
 
+/** Lasso/tap background removal in progress on one photo layer. */
+export type LassoState = CutoutPrompt & { layerId: string; mode: 'include' | 'exclude' }
+
 export type View = 'shop' | 'edit'
 
 /** One product's design plus its undo/redo stacks. */
@@ -77,6 +81,8 @@ type DesignState = {
   selectedId: string | null
   /** Crop box being edited, in the photo's local frame; null when not cropping. */
   cropDraft: Box | null
+  /** Lasso cutout being drawn; null when not in lasso mode. */
+  lasso: LassoState | null
 
   /** Per product: the 2D print canvas the 3D model samples as a texture. */
   printCanvases: Record<string, HTMLCanvasElement>
@@ -100,6 +106,11 @@ type DesignState = {
   setCropDraft: (box: Box) => void
   applyCrop: () => void
   cancelCrop: () => void
+
+  /** Enter lasso mode on the selected photo. */
+  startLasso: () => void
+  updateLasso: (patch: Partial<LassoState>) => void
+  endLasso: () => void
 
   setPrintCanvas: (productId: string, canvas: HTMLCanvasElement) => void
   markPrintDirty: (productId: string) => void
@@ -136,6 +147,7 @@ export const useDesignStore = create<DesignState>()((set, get) => {
     ...emptySlot(),
     selectedId: null,
     cropDraft: null,
+    lasso: null,
     printCanvases: {},
     printVersions: {},
 
@@ -154,11 +166,12 @@ export const useDesignStore = create<DesignState>()((set, get) => {
         ...slot,
         selectedId: null,
         cropDraft: null,
+        lasso: null,
       })
     },
     backToShop: () => {
       log.info('view', 'shop')
-      set({ view: 'shop', selectedId: null, cropDraft: null })
+      set({ view: 'shop', selectedId: null, cropDraft: null, lasso: null })
     },
 
     addLayer: (layer) => {
@@ -173,7 +186,7 @@ export const useDesignStore = create<DesignState>()((set, get) => {
     removeLayer: (id) => {
       log.info('design', `remove ${id.slice(0, 8)}`)
       mapLayers((layers) => layers.filter((l) => l.id !== id))
-      set((s) => ({ selectedId: s.selectedId === id ? null : s.selectedId, cropDraft: null }))
+      set((s) => ({ selectedId: s.selectedId === id ? null : s.selectedId, cropDraft: null, lasso: null }))
     },
     moveLayer: (id, step) =>
       mapLayers((layers) => {
@@ -193,8 +206,8 @@ export const useDesignStore = create<DesignState>()((set, get) => {
     },
 
     undo: () => {
-      const { past, design, future, selectedId, cropDraft } = get()
-      if (!past.length || cropDraft) return
+      const { past, design, future, selectedId, cropDraft, lasso } = get()
+      if (!past.length || cropDraft || lasso) return
       const prev = past[past.length - 1]
       log.info('history', `undo (${past.length - 1} left)`)
       set({
@@ -205,8 +218,8 @@ export const useDesignStore = create<DesignState>()((set, get) => {
       })
     },
     redo: () => {
-      const { past, design, future, selectedId, cropDraft } = get()
-      if (!future.length || cropDraft) return
+      const { past, design, future, selectedId, cropDraft, lasso } = get()
+      if (!future.length || cropDraft || lasso) return
       const next = future[0]
       log.info('history', `redo (${future.length - 1} left)`)
       set({
@@ -239,6 +252,15 @@ export const useDesignStore = create<DesignState>()((set, get) => {
       log.debug('crop', 'cancelled')
       set({ cropDraft: null })
     },
+
+    startLasso: () => {
+      const photo = selectedLayer(get())
+      if (photo?.kind !== 'photo') return
+      log.debug('lasso', 'start')
+      set({ lasso: { layerId: photo.id, mode: 'include', lasso: null, taps: [] }, cropDraft: null })
+    },
+    updateLasso: (patch) => set((s) => (s.lasso ? { lasso: { ...s.lasso, ...patch } } : s)),
+    endLasso: () => set({ lasso: null }),
 
     setPrintCanvas: (productId, canvas) =>
       set((s) => ({ printCanvases: { ...s.printCanvases, [productId]: canvas } })),

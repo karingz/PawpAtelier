@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type Konva from 'konva'
-import { Group, Image as KImage, Layer as KLayer, Line, Rect, Stage, Text, Transformer } from 'react-konva'
+import { Circle, Group, Image as KImage, Layer as KLayer, Line, Rect, Stage, Text, Transformer } from 'react-konva'
 import { DESIGN_UNITS_PER_INCH, designSize, type ProductSpec } from '../config/products'
 import { getFont, loadFontFor } from '../content/fonts'
 import { getPalette, patternTile, TILE } from '../content/patterns'
@@ -8,12 +8,14 @@ import {
   selectedLayer,
   useDesignStore,
   type Background,
+  type LassoState,
   type Layer,
   type PhotoLayer,
   type TextLayer,
 } from '../store/designStore'
 import { log } from '../debug/log'
-import { clampBox, fullImageBox, type Box } from './crop'
+import { clampBox, fullImageBox, visibleBox, type Box } from './crop'
+import { requestLassoPreview, resetLassoPreview, useLassoPreview } from './cutout/removeBackground'
 import { useImages } from './useHtmlImage'
 
 const SAFE_INSET = 0.125 * DESIGN_UNITS_PER_INCH
@@ -39,11 +41,20 @@ export function PrintCanvas({ spec }: Props) {
   const { background, layers } = useDesignStore((s) => s.design)
   const selectedId = useDesignStore((s) => s.selectedId)
   const cropDraft = useDesignStore((s) => s.cropDraft)
+  const lasso = useDesignStore((s) => s.lasso)
+  /** Crop or lasso: the canvas is a tool surface, layers can't be moved. */
+  const editing = !!cropDraft || !!lasso
   const select = useDesignStore((s) => s.select)
   const updateLayer = useDesignStore((s) => s.updateLayer)
   const selected = useDesignStore(selectedLayer)
 
-  const srcs = useMemo(() => layers.flatMap((l) => (l.kind === 'text' ? [] : [l.src])), [layers])
+  // In lasso mode the photo shows its original (uncut) image so you can see what to circle.
+  const shownSrc = (l: Exclude<Layer, TextLayer>) => (lasso?.layerId === l.id && l.kind === 'photo' ? (l.originalSrc ?? l.src) : l.src)
+  const srcs = useMemo(
+    () => layers.flatMap((l) => (l.kind === 'text' ? [] : [lasso?.layerId === l.id && l.kind === 'photo' ? (l.originalSrc ?? l.src) : l.src])),
+    [layers, lasso?.layerId],
+  )
+  const lassoPhoto = lasso ? layers.find((l): l is PhotoLayer => l.id === lasso.layerId && l.kind === 'photo') : undefined
   const { images, complete: imagesReady } = useImages(srcs)
   const fontsVersion = useFontsVersion(layers)
 
@@ -108,13 +119,13 @@ export function PrintCanvas({ spec }: Props) {
     const tr = transformerRef.current
     const stage = stageRef.current
     if (!tr || !stage) return
-    const node = !cropDraft && selectedId ? stage.findOne(`#${selectedId}`) : undefined
+    const node = !editing && selectedId ? stage.findOne(`#${selectedId}`) : undefined
     tr.nodes(node ? [node] : [])
     tr.getLayer()?.batchDraw()
-  }, [layers, selectedId, cropDraft, images, fontsVersion])
+  }, [layers, selectedId, editing, images, fontsVersion])
 
   const deselectOnEmpty = (e: Konva.KonvaEventObject<PointerEvent>) => {
-    if (cropDraft) return
+    if (editing) return
     if (e.target === e.target.getStage() || e.target.name() === 'background') select(null)
   }
 
@@ -163,8 +174,8 @@ export function PrintCanvas({ spec }: Props) {
                 }
                 const handlers = {
                   id: layer.id,
-                  draggable: !cropDraft,
-                  listening: !cropDraft,
+                  draggable: !editing,
+                  listening: !editing,
                   onPointerDown: () => select(layer.id),
                   onDragEnd: commit(layer),
                   onTransformEnd: commit(layer),
@@ -172,7 +183,7 @@ export function PrintCanvas({ spec }: Props) {
                 if (layer.kind === 'text') {
                   return <TextNode key={`${layer.id}:${fontsVersion}`} layer={layer} {...handlers} />
                 }
-                const image = images.get(layer.src)
+                const image = images.get(shownSrc(layer))
                 if (!image) return null
                 return (
                   <KImage
@@ -231,6 +242,7 @@ export function PrintCanvas({ spec }: Props) {
               {cropPhoto && cropDraft && (
                 <CropEditor photo={cropPhoto} image={images.get(cropPhoto.src)!} draft={cropDraft} />
               )}
+              {lasso && lassoPhoto && <LassoOverlay photo={lassoPhoto} lasso={lasso} scale={scale} />}
             </KLayer>
           </Stage>
         )}
@@ -447,5 +459,95 @@ function CropEditor({ photo, image, draft }: { photo: PhotoLayer; image: HTMLIma
         borderDash={[4, 4]}
       />
     </PhotoFrame>
+  )
+}
+
+/** Normalized source-photo coords <-> the photo's local frame. */
+function sourceToLocal(photo: PhotoLayer, [u, v]: [number, number]): [number, number] {
+  const full = fullImageBox(photo)
+  return [full.x + u * full.width, full.y + v * full.height]
+}
+
+/**
+ * Lasso mode: draw a rough loop around the pet, or tap to include / exclude. Shows the
+ * worker's live preview (pink = kept) over the original photo.
+ */
+function LassoOverlay({ photo, lasso, scale }: { photo: PhotoLayer; lasso: LassoState; scale: number }) {
+  const groupRef = useRef<Konva.Group>(null)
+  const preview = useLassoPreview((s) => s.canvas)
+  const updateLasso = useDesignStore((s) => s.updateLasso)
+  const [drawing, setDrawing] = useState<[number, number][] | null>(null)
+  const full = fullImageBox(photo)
+  const visible = visibleBox(photo)
+
+  // Refresh the preview whenever the prompt changes (also warms up both models on entry).
+  const prompt = useMemo(() => ({ lasso: lasso.lasso, taps: lasso.taps }), [lasso.lasso, lasso.taps])
+  useEffect(() => {
+    requestLassoPreview(photo, prompt)
+  }, [photo, prompt])
+  useEffect(() => resetLassoPreview, [])
+
+  const toSource = (): [number, number] | null => {
+    const p = groupRef.current?.getRelativePointerPosition()
+    if (!p) return null
+    return [(p.x - full.x) / full.width, (p.y - full.y) / full.height]
+  }
+
+  const onDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    e.cancelBubble = true
+    const p = toSource()
+    if (!p) return
+    setDrawing([p])
+    const stage = e.target.getStage()!
+    let path: [number, number][] = [p]
+    stage.on('pointermove.lasso', () => {
+      const q = toSource()
+      if (!q) return
+      path = [...path, q]
+      setDrawing(path)
+    })
+    stage.on('pointerup.lasso pointercancel.lasso', () => {
+      stage.off('.lasso')
+      setDrawing(null)
+      // Path length in screen px decides tap vs loop.
+      let length = 0
+      for (let i = 1; i < path.length; i++) {
+        const [ax, ay] = sourceToLocal(photo, path[i - 1])
+        const [bx, by] = sourceToLocal(photo, path[i])
+        length += Math.hypot(bx - ax, by - ay) * scale
+      }
+      if (length < 10) {
+        const [x, y] = path[0]
+        updateLasso({ taps: [...lasso.taps, { x, y, label: lasso.mode === 'include' ? 1 : 0 }] })
+      } else if (path.length >= 3) {
+        updateLasso({ lasso: path })
+      }
+    })
+  }
+
+  const toPoints = (path: [number, number][]) => path.flatMap((p) => sourceToLocal(photo, p))
+  const dot = 7 / scale
+
+  return (
+    <Group ref={groupRef} x={photo.x} y={photo.y} rotation={photo.rotation}>
+      <Group clipX={visible.x} clipY={visible.y} clipWidth={visible.width} clipHeight={visible.height}>
+        {preview && <KImage image={preview} {...full} listening={false} />}
+        {lasso.lasso && (
+          <Line points={toPoints(lasso.lasso)} closed stroke={ACCENT} strokeWidth={2} strokeScaleEnabled={false} dash={[6, 4]} listening={false} />
+        )}
+        {drawing && drawing.length > 1 && (
+          <Line points={toPoints(drawing)} stroke="#ffffff" strokeWidth={3} strokeScaleEnabled={false} shadowColor="#000" shadowBlur={4} shadowOpacity={0.4} listening={false} />
+        )}
+        {lasso.taps.map((t, i) => {
+          const [x, y] = sourceToLocal(photo, [t.x, t.y])
+          return (
+            <Circle key={i} x={x} y={y} radius={dot} fill={t.label ? '#3fb67a' : '#e0474c'} stroke="#fff" strokeWidth={2} strokeScaleEnabled={false} listening={false} />
+          )
+        })}
+        {/* Capture surface for drawing and tapping */}
+        <Rect {...visible} fill="rgba(0,0,0,0.001)" onPointerDown={onDown} />
+      </Group>
+      <Rect {...visible} stroke={ACCENT} strokeWidth={1.5} strokeScaleEnabled={false} listening={false} />
+    </Group>
   )
 }

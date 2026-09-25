@@ -5,7 +5,7 @@ import { PALETTES, PATTERNS, SOLID_COLORS, getPalette, patternSwatch } from '../
 import { STICKERS, STICKER_CATEGORIES } from '../content/stickers'
 import { log } from '../debug/log'
 import { selectedLayer, useDesignStore, type PhotoLayer, type TextLayer } from '../store/designStore'
-import { removeBackground, restoreBackground, useCutoutJobs } from './cutout/removeBackground'
+import { applyLasso, removeBackground, resetLassoPreview, restoreBackground, useCutoutJobs, useLassoPreview } from './cutout/removeBackground'
 import { PrintCanvas } from './PrintCanvas'
 import { loadImageSize } from './useHtmlImage'
 
@@ -29,6 +29,8 @@ export function Editor({ spec }: { spec: ProductSpec }) {
   const [tab, setTab] = useState<Tab>('photo')
   const selected = useDesignStore(selectedLayer)
   const cropping = useDesignStore((s) => s.cropDraft !== null)
+  const lassoing = useDesignStore((s) => s.lasso !== null)
+  const toolMode = cropping || lassoing
 
   // Selecting text on the canvas opens its settings.
   const [seenSelection, setSeenSelection] = useState(selected?.id)
@@ -39,11 +41,11 @@ export function Editor({ spec }: { spec: ProductSpec }) {
 
   return (
     <section className="app__editor">
-      {cropping ? <CropBar /> : <LayerBar spec={spec} />}
+      {cropping ? <CropBar /> : lassoing ? <LassoBar /> : <LayerBar spec={spec} />}
 
       <PrintCanvas spec={spec} />
 
-      {!cropping && (
+      {!toolMode && (
         <>
           <nav className="tabs" role="tablist">
             {TABS.map((t) => (
@@ -76,7 +78,7 @@ function LayerBar({ spec }: { spec: ProductSpec }) {
   const layers = useDesignStore((s) => s.design.layers)
   const canUndo = useDesignStore((s) => s.past.length > 0)
   const canRedo = useDesignStore((s) => s.future.length > 0)
-  const { undo, redo, startCrop, moveLayer, removeLayer, updateLayer } = useDesignStore.getState()
+  const { undo, redo, startCrop, startLasso, moveLayer, removeLayer, updateLayer } = useDesignStore.getState()
   const index = selected ? layers.indexOf(selected) : -1
 
   const center = () => {
@@ -93,6 +95,9 @@ function LayerBar({ spec }: { spec: ProductSpec }) {
           {selected.kind === 'photo' && (
             <>
               <CutoutButton photo={selected} />
+              <button className="btn btn--small" onClick={startLasso} title="Circle your pet or tap to fix the cutout">
+                Lasso
+              </button>
               <button className="btn btn--small" onClick={startCrop}>
                 Crop
               </button>
@@ -148,6 +153,62 @@ function CutoutButton({ photo }: { photo: PhotoLayer }) {
     <button className="btn btn--small btn--magic" onClick={() => removeBackground(photo)} title="Cut your pet out of the photo">
       ✨ Remove BG
     </button>
+  )
+}
+
+/** Lasso mode: include/exclude taps, clear, apply. */
+function LassoBar() {
+  const lasso = useDesignStore((s) => s.lasso)!
+  const photo = useDesignStore((s) => s.design.layers.find((l) => l.id === s.lasso?.layerId))
+  const { updateLasso, endLasso } = useDesignStore.getState()
+  const busy = useLassoPreview((s) => s.busy)
+  const job = useCutoutJobs((s) => (photo ? s.jobs[photo.id] : undefined))
+  const hasPrompt = !!lasso.lasso || lasso.taps.length > 0
+
+  const status = job
+    ? job.phase === 'download'
+      ? `Getting AI ready ${Math.round(job.percent)}%`
+      : 'Cutting out…'
+    : busy
+      ? busy.phase === 'download'
+        ? `Getting AI ready ${Math.round(busy.percent)}%`
+        : 'Thinking…'
+      : hasPrompt
+        ? 'Bright = kept. Tap to fix bits.'
+        : 'Draw a loop around your pet'
+
+  const cancel = () => {
+    endLasso()
+    resetLassoPreview()
+  }
+
+  return (
+    <div className="toolbar">
+      <span className={`toolbar__label${busy || job ? ' toolbar__label--busy' : ''}`}>{status}</span>
+      <span className="chips">
+        <button className={`chip${lasso.mode === 'include' ? ' chip--active' : ''}`} onClick={() => updateLasso({ mode: 'include' })}>
+          + Keep
+        </button>
+        <button className={`chip${lasso.mode === 'exclude' ? ' chip--active' : ''}`} onClick={() => updateLasso({ mode: 'exclude' })}>
+          − Remove
+        </button>
+      </span>
+      <span className="toolbar__history">
+        <button className="btn btn--small" onClick={() => updateLasso({ lasso: null, taps: [] })} disabled={!hasPrompt || !!job}>
+          Clear
+        </button>
+        <button
+          className="btn btn--primary btn--small"
+          onClick={() => photo?.kind === 'photo' && applyLasso(photo, { lasso: lasso.lasso, taps: lasso.taps })}
+          disabled={!hasPrompt || !!job}
+        >
+          Apply
+        </button>
+        <button className="btn btn--small" onClick={cancel} disabled={!!job}>
+          Cancel
+        </button>
+      </span>
+    </div>
   )
 }
 

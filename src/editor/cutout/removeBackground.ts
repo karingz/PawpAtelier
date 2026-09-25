@@ -2,11 +2,12 @@ import { create } from 'zustand'
 import { log } from '../../debug/log'
 import { useDesignStore, type PhotoLayer } from '../../store/designStore'
 import { loadImage } from '../useHtmlImage'
-import type { CutoutRequest, CutoutResponse } from './protocol'
+import type { CutoutPrompt, CutoutRequest, CutoutResponse } from './protocol'
 
 type Job = { phase: 'download' | 'running'; percent: number }
+type MaskResult = Extract<CutoutResponse, { type: 'mask' }>
 
-/** Background-removal jobs in flight, by layer id (drives the button's progress label). */
+/** Cutout jobs in flight, by layer id (drives the buttons' progress labels). */
 export const useCutoutJobs = create<{ jobs: Record<string, Job> }>()(() => ({ jobs: {} }))
 
 const setJob = (layerId: string, job: Job | null) =>
@@ -26,51 +27,129 @@ function getWorker() {
   return worker
 }
 
-/**
- * Cut the pet out of a photo layer (one click). The result replaces the layer's image as a
- * transparent PNG; the original is kept on the layer so it can be restored, and undo works.
- */
-export async function removeBackground(layer: PhotoLayer) {
-  if (useCutoutJobs.getState().jobs[layer.id]) return
-  const requestId = crypto.randomUUID()
-  setJob(layer.id, { phase: 'download', percent: 0 })
-  log.info('cutout', `start ${layer.id.slice(0, 8)} ${layer.naturalWidth}x${layer.naturalHeight}`)
-
-  try {
-    const result = await new Promise<Extract<CutoutResponse, { type: 'done' }>>((resolve, reject) => {
-      waiting.set(requestId, (msg) => {
-        if (msg.type === 'progress') setJob(layer.id, { phase: msg.phase, percent: msg.percent })
-        else if (msg.type === 'done') resolve(msg)
-        else reject(new Error(msg.message))
-      })
-      getWorker().postMessage({ id: requestId, src: layer.src } satisfies CutoutRequest)
+/** Send one job to the worker; progress goes to `onProgress`. */
+function request(msg: CutoutRequest, onProgress: (job: Job) => void): Promise<MaskResult> {
+  return new Promise<MaskResult>((resolve, reject) => {
+    waiting.set(msg.id, (res) => {
+      if (res.type === 'progress') return onProgress({ phase: res.phase, percent: res.percent })
+      waiting.delete(msg.id)
+      if (res.type === 'mask') resolve(res)
+      else reject(new Error(res.message))
     })
-    log.info('cutout', `done in ${result.info.ms} ms`, result.info)
+    getWorker().postMessage(msg)
+  })
+}
 
-    const cutoutSrc = await applyAlpha(layer.src, result.alpha, result.width, result.height)
+/** The unedited photo behind a layer (cutouts keep it in `originalSrc`). */
+const baseSrc = (layer: PhotoLayer) => layer.originalSrc ?? layer.src
 
-    // Only apply if the layer still shows the photo we started from.
-    const { design, updateLayer } = useDesignStore.getState()
-    const current = design.layers.find((l) => l.id === layer.id)
-    if (current?.kind === 'photo' && current.src === layer.src) {
-      updateLayer(layer.id, { src: cutoutSrc, originalSrc: layer.src })
-    } else {
-      log.warn('cutout', 'layer changed while processing; result dropped')
-      URL.revokeObjectURL(cutoutSrc)
-    }
+/**
+ * Put a finished alpha mask on the layer as a new transparent PNG, keeping the original so it
+ * can be restored (and undo works). Skipped if the layer changed while we were working.
+ */
+async function applyResult(layer: PhotoLayer, result: MaskResult) {
+  const base = baseSrc(layer)
+  const cutoutSrc = await applyAlpha(base, result.alpha, result.width, result.height)
+  const { design, updateLayer } = useDesignStore.getState()
+  const current = design.layers.find((l) => l.id === layer.id)
+  if (current?.kind === 'photo' && baseSrc(current) === base) {
+    updateLayer(layer.id, { src: cutoutSrc, originalSrc: base })
+    return true
+  }
+  log.warn('cutout', 'layer changed while processing; result dropped')
+  URL.revokeObjectURL(cutoutSrc)
+  return false
+}
+
+async function runJob(layer: PhotoLayer, msg: CutoutRequest) {
+  if (useCutoutJobs.getState().jobs[layer.id]) return false
+  setJob(layer.id, { phase: 'download', percent: 0 })
+  log.info('cutout', `${msg.type} ${layer.id.slice(0, 8)} ${layer.naturalWidth}x${layer.naturalHeight}`)
+  try {
+    const result = await request(msg, (job) => setJob(layer.id, job))
+    log.info('cutout', `${msg.type} done in ${result.info.ms} ms`, result.info)
+    return await applyResult(layer, result)
   } catch (err) {
-    log.error('cutout', 'failed', err)
+    log.error('cutout', `${msg.type} failed`, err)
     alert("Sorry, the background couldn't be removed from this photo.")
+    return false
   } finally {
-    waiting.delete(requestId)
     setJob(layer.id, null)
   }
+}
+
+/** One click: cut the pet out automatically. */
+export function removeBackground(layer: PhotoLayer) {
+  return runJob(layer, { id: crypto.randomUUID(), type: 'auto', src: baseSrc(layer) })
 }
 
 /** Put the original photo back (the cutout stays in undo history). */
 export function restoreBackground(layer: PhotoLayer) {
   if (!layer.originalSrc) return
   useDesignStore.getState().updateLayer(layer.id, { src: layer.originalSrc, originalSrc: undefined })
+}
+
+// ---------------------------------------------------------------------------------------------
+// Lasso / taps
+
+type LassoPreview = {
+  /** Veil over what would be removed, covering the whole source photo (small size). */
+  canvas: HTMLCanvasElement | null
+  busy: Job | null
+}
+
+export const useLassoPreview = create<LassoPreview>()(() => ({ canvas: null, busy: null }))
+
+let latestPreview = ''
+
+/** Ask for a fresh preview of the lasso result; older in-flight previews are ignored. */
+export async function requestLassoPreview(layer: PhotoLayer, prompt: CutoutPrompt) {
+  const id = crypto.randomUUID()
+  latestPreview = id
+  useLassoPreview.setState((s) => ({ busy: s.busy ?? { phase: 'running', percent: 0 } }))
+  try {
+    const result = await request({ id, type: 'preview', src: baseSrc(layer), prompt }, (job) => {
+      if (id === latestPreview) useLassoPreview.setState({ busy: job })
+    })
+    if (id !== latestPreview) return
+    log.debug('lasso', `preview ${result.info.ms} ms`, result.info)
+    useLassoPreview.setState({ canvas: tint(result.alpha, result.width, result.height), busy: null })
+  } catch (err) {
+    if (id !== latestPreview) return
+    log.error('lasso', 'preview failed', err)
+    useLassoPreview.setState({ busy: null })
+  }
+}
+
+export function resetLassoPreview() {
+  latestPreview = ''
+  useLassoPreview.setState({ canvas: null, busy: null })
+}
+
+/** Final lasso cutout at full resolution. */
+export async function applyLasso(layer: PhotoLayer, prompt: CutoutPrompt) {
+  const ok = await runJob(layer, { id: crypto.randomUUID(), type: 'refine', src: baseSrc(layer), prompt })
+  if (ok) {
+    useDesignStore.getState().endLasso()
+    resetLassoPreview()
+  }
+}
+
+/** Dark veil over what will be removed, so the kept pet stands out on any photo. */
+function tint(alpha: Uint8ClampedArray, width: number, height: number) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')!
+  const img = ctx.createImageData(width, height)
+  for (let i = 0; i < alpha.length; i++) {
+    img.data[i * 4] = 28
+    img.data[i * 4 + 1] = 20
+    img.data[i * 4 + 2] = 24
+    img.data[i * 4 + 3] = (255 - alpha[i]) * 0.72
+  }
+  ctx.putImageData(img, 0, 0)
+  return canvas
 }
 
 /** The photo at full resolution with the mask as its alpha channel, as a PNG blob URL. */

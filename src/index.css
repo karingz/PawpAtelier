@@ -551,3 +551,7 @@ button {
     background-position: -200% 0;
   }
 }
+
+.toolbar__label--busy {
+  color: var(--accent);
+}

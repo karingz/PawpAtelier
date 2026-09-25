@@ -104,7 +104,7 @@ function useEditorShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      const { view, undo, redo, cancelCrop, cropDraft, selectedId, removeLayer } = useDesignStore.getState()
+      const { view, undo, redo, cancelCrop, cropDraft, lasso, endLasso, selectedId, removeLayer } = useDesignStore.getState()
       if (view !== 'edit') return
       const mod = e.ctrlKey || e.metaKey
       const key = e.key.toLowerCase()
@@ -117,7 +117,9 @@ function useEditorShortcuts() {
         redo()
       } else if (key === 'escape' && cropDraft) {
         cancelCrop()
-      } else if ((key === 'delete' || key === 'backspace') && selectedId && !cropDraft) {
+      } else if (key === 'escape' && lasso) {
+        endLasso()
+      } else if ((key === 'delete' || key === 'backspace') && selectedId && !cropDraft && !lasso) {
         e.preventDefault()
         removeLayer(selectedId)
       }
