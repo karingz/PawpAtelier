@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type Konva from 'konva'
 import { Group, Image as KImage, Layer, Line, Rect, Stage, Transformer } from 'react-konva'
-import { DESIGN_UNITS_PER_INCH, designSize, type MugSpec } from '../config/products'
+import { DESIGN_UNITS_PER_INCH, designSize, type ProductSpec } from '../config/products'
 import { useDesignStore, type PhotoLayer } from '../store/designStore'
 import { log } from '../debug/log'
 import { clampBox, fullImageBox, type Box } from './crop'
@@ -11,7 +11,7 @@ const SAFE_INSET = 0.125 * DESIGN_UNITS_PER_INCH
 const MIN_PHOTO_SIZE = 40
 const ACCENT = '#d9607f'
 
-type Props = { spec: MugSpec }
+type Props = { spec: ProductSpec }
 
 /**
  * Flat print-area editor. The "print" layer is exactly what goes on the product and is
@@ -35,6 +35,11 @@ export function PrintCanvas({ spec }: Props) {
   const scale = displayWidth / design.width
   const displayHeight = design.height * scale
   const cropping = !!(cropDraft && photo && image)
+  // The print layer is only worth publishing once the photo (if any) has decoded.
+  const complete = useRef(false)
+  useEffect(() => {
+    complete.current = !photo || !!image
+  })
 
   // Track the container width so the stage stays responsive.
   useLayoutEffect(() => {
@@ -61,28 +66,26 @@ export function PrintCanvas({ spec }: Props) {
   // Publish finished frames to the 3D scene. The layer's own canvas is cleared and resized
   // whenever the stage resizes, so the product samples a fixed-size copy made after each
   // complete draw instead; otherwise it can catch a blank canvas and flash black.
+  // The copy outlives this editor, so the product keeps its print in the shop view.
   const stageReady = displayWidth > 0
   useEffect(() => {
     const layer = printLayerRef.current
     if (!layer) return
-    const texture = document.createElement('canvas')
-    texture.width = spec.previewTextureWidth
-    texture.height = Math.round((spec.previewTextureWidth * design.height) / design.width)
+    const texture = printTextureCanvas(spec)
     const ctx = texture.getContext('2d')!
-    const { setPrintCanvas, markPrintDirty } = useDesignStore.getState()
+    const { markPrintDirty } = useDesignStore.getState()
 
     const publish = () => {
+      if (!complete.current) return
       ctx.drawImage(layer.getCanvas()._canvas, 0, 0, texture.width, texture.height)
-      markPrintDirty()
+      markPrintDirty(spec.id)
     }
-    setPrintCanvas(texture)
     layer.on('draw', publish)
     layer.batchDraw()
     return () => {
       layer.off('draw', publish)
-      setPrintCanvas(null)
     }
-  }, [stageReady, spec.previewTextureWidth, design.width, design.height])
+  }, [stageReady, spec])
 
   // Attach the transform handles to the selected photo (hidden while cropping).
   useEffect(() => {
@@ -198,12 +201,28 @@ export function PrintCanvas({ spec }: Props) {
         )}
       </div>
       <div className="print-canvas__labels">
-        <span>← handle side</span>
+        <span>← {spec.handle ? 'handle side' : 'back seam'}</span>
         <span>front</span>
-        <span>handle side →</span>
+        <span>{spec.handle ? 'handle side' : 'back seam'} →</span>
       </div>
     </div>
   )
+}
+
+/** The product's fixed-size texture canvas, created on first use. */
+function printTextureCanvas(spec: ProductSpec) {
+  const { printCanvases, setPrintCanvas } = useDesignStore.getState()
+  const existing = printCanvases[spec.id]
+  if (existing) return existing
+  const { width, height } = designSize(spec)
+  const canvas = document.createElement('canvas')
+  canvas.width = spec.previewTextureWidth
+  canvas.height = Math.round((spec.previewTextureWidth * height) / width)
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = spec.color
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  setPrintCanvas(spec.id, canvas)
+  return canvas
 }
 
 /** A group in the photo's local frame: origin at its center, rotated with it. */

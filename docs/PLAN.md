@@ -77,7 +77,7 @@ The customization is always shown live on a 3D model. Pan/rotate/zoom is intuiti
 | 1 | Viewer prototype | Vite + R3F app, placeholder mug, springy clamped controls, photo upload textured live | **Done** |
 | 2 | Editor core | Konva canvas → 3D texture; move/scale/rotate/crop; undo/redo | **Done** (move/scale/rotate, crop, undo/redo) |
 | 3 | Blender scene v1 | Studio diorama, baked lighting, GLB export (parallel with 1–2) | |
-| 4 | Integration | Shop view ↔ edit view camera flights, hover bounces, loading screen | |
+| 4 | Integration | Shop view ↔ edit view camera flights, hover bounces, loading screen | **Done** on a placeholder table (mug + tumbler); swap in the room after Phase 3 |
 | 5 | Content & effects | Templates (stickers, backgrounds, themes, text, emojis), filters, background removal, cartoonize | |
 | 6 | Randomizer | Reckless slider, seeded rolls, history strip | |
 | 7 | Checkout | Design storage + Shopify (or Korean PG) integration | |

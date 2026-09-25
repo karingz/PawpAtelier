@@ -43,11 +43,16 @@ button {
 
 .app__header h1 {
   margin: 0;
+  white-space: nowrap;
   font-size: 1.25rem;
   letter-spacing: 0.02em;
 }
 
 .app__product {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 0.9rem;
 }
@@ -64,6 +69,9 @@ button {
   position: relative;
   height: 52vh;
   min-height: 280px;
+  /* Let the 3D canvas shrink when the editor opens (flex items default to min-width: auto) */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .scene {
@@ -137,8 +145,10 @@ button {
   line-height: 1;
 }
 
-.toolbar__spacer {
-  flex: 1;
+.toolbar__history {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .btn--primary {
@@ -181,5 +191,130 @@ button {
     border-top: none;
     border-left: 1px solid var(--line);
     border-radius: 20px 0 0 20px;
+  }
+}
+
+/* Shop view: the scene fills the page, product picker floats over it */
+.app--shop .app__main {
+  position: relative;
+}
+
+.app--shop .app__viewer {
+  flex: 1;
+  height: auto;
+}
+
+.app--shop .app__hint {
+  bottom: auto;
+  top: 8px;
+}
+
+.app__shop {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgb(59 47 47 / 0.12);
+}
+
+.app__shop h2 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+}
+
+.product-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.product-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s;
+}
+
+.product-card:hover {
+  transform: scale(1.03);
+  border-color: var(--accent);
+}
+
+.product-card:active {
+  transform: scale(0.97);
+}
+
+.product-card__name {
+  font-weight: 700;
+}
+
+.product-card__meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.btn--back {
+  align-self: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 6px 12px;
+  font-size: 0.9rem;
+}
+
+/* Loading screen */
+.loading {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--cream);
+  transition: opacity 0.5s ease;
+}
+
+.loading--done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading__paw {
+  font-size: 2.5rem;
+  animation: paw-hop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) infinite alternate;
+}
+
+.loading__name {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+@keyframes paw-hop {
+  from {
+    transform: translateY(0) scale(1, 1);
+  }
+  to {
+    transform: translateY(-14px) scale(0.95, 1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading__paw {
+    animation: none;
   }
 }

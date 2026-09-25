@@ -10,8 +10,9 @@ npm run dev      # dev server → http://localhost:5173 (Ctrl+C to stop)
 npm run build    # type-check + production build
 ```
 
-Open http://localhost:5173, upload a pet photo, drag/resize/rotate it on the flat canvas and
-watch the mug update live. Drag the mug to spin it; let go to see it spring back.
+Open http://localhost:5173, tap a product (or its card) to fly in, upload a pet photo,
+drag/resize/rotate/crop it on the flat canvas and watch the product update live. Drag the
+product to spin it; let go to see it spring back. "← Shop" flies back out.
 Code edits hot-reload instantly.
 
 To stop: press `Ctrl+C` in the terminal running it. If that terminal is gone but the port is
@@ -51,4 +52,10 @@ git log --stat   # commits and changed files (or VS Code Source Control: Ctrl+Sh
 - `src/debug/log.ts`: scoped logger (echoed to the dev terminal)
 - `src/editor/PrintCanvas.tsx`: Konva print-area editor. The print layer's canvas *is* the 3D texture;
   guides and transform handles sit on a separate layer so they never show on the product.
-- `src/scene/`: R3F scene, placeholder `Mug`, and `SpringyControls` (clamped drag, rubber-band, bouncy spring-back)
+- `src/scene/`: R3F scene
+  - `Scene.tsx`: table layout, shop/edit framing
+  - `CameraRig.tsx`: fits a framing to any aspect, GSAP fly-to between views
+  - `ProductSlot.tsx`: hover squash/bounce, tap to open, drag-turn while editing
+  - `CylinderProduct.tsx`: placeholder mug/tumbler with the live print texture
+  - `SpringyControls.tsx`: clamped drag, rubber-band, bouncy spring-back
+  - `IdleFloat.tsx`: idle bob that resumes smoothly after a tab switch

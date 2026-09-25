@@ -5,6 +5,8 @@ import { log } from '../debug/log'
 
 type Props = {
   children: ReactNode
+  /** When false, input is ignored and the object springs back to rest. */
+  enabled?: boolean
   /** Resting rotation [x (tilt), y (spin)] in radians. */
   rest?: [number, number]
   /** Spin limits relative to rest; dragging past them rubber-bands and springs back. */
@@ -24,6 +26,7 @@ type Props = {
  */
 export function SpringyControls({
   children,
+  enabled = true,
   rest = [0, 0],
   azimuth = [-Math.PI, Math.PI],
   polar = [-0.35, 0.35],
@@ -47,6 +50,7 @@ export function SpringyControls({
   })
 
   useEffect(() => {
+    if (!enabled) return
     const s = state.current
     const onDown = (e: PointerEvent) => {
       if (s.dragging) return
@@ -80,12 +84,15 @@ export function SpringyControls({
     dom.addEventListener('pointerup', onUp)
     dom.addEventListener('pointercancel', onUp)
     return () => {
+      s.dragging = false
+      s.pointerId = -1
+      dom.style.cursor = ''
       dom.removeEventListener('pointerdown', onDown)
       dom.removeEventListener('pointermove', onMove)
       dom.removeEventListener('pointerup', onUp)
       dom.removeEventListener('pointercancel', onUp)
     }
-  }, [dom, speed])
+  }, [dom, speed, enabled])
 
   useFrame((_, delta) => {
     const s = state.current
@@ -94,6 +101,9 @@ export function SpringyControls({
     if (s.dragging) {
       track(s.spin, rubberBand(s.rawSpin, azimuth), dt)
       track(s.tilt, rubberBand(s.rawTilt, polar), dt)
+    } else if (!enabled) {
+      spring(s.spin, 0, stiffness, damping, dt)
+      spring(s.tilt, 0, stiffness, damping, dt)
     } else {
       // Spin keeps a little momentum inside the limits; tilt always goes home.
       const spinTarget = clamp(s.spin.x, azimuth)

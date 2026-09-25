@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { log } from '../debug/log'
+import { PRODUCTS } from '../config/products'
 import { applyCropBox, visibleBox, type Box } from '../editor/crop'
 
 /** Normalized (0..1) region of the source image that is shown. */
@@ -26,7 +27,18 @@ export type Design = {
 
 const HISTORY_LIMIT = 100
 
+export type View = 'shop' | 'edit'
+
+/** One product's design plus its undo/redo stacks. */
+type DesignSlot = { design: Design; past: Design[]; future: Design[] }
+
 type DesignState = {
+  view: View
+  /** Product being edited (or last edited). The design fields below belong to it. */
+  productId: string
+  /** Designs of the other products, parked while another one is being edited. */
+  parked: Record<string, DesignSlot>
+
   design: Design
   past: Design[]
   future: Design[]
@@ -35,10 +47,13 @@ type DesignState = {
   /** Crop box being edited, in the photo's local frame; null when not cropping. */
   cropDraft: Box | null
 
-  /** The 2D print canvas the 3D product samples as a texture. */
-  printCanvas: HTMLCanvasElement | null
-  /** Bumped every time the print canvas redraws; read non-reactively in the render loop. */
-  printVersion: number
+  /** Per product: the 2D print canvas the 3D model samples as a texture. */
+  printCanvases: Record<string, HTMLCanvasElement>
+  /** Per product: bumped on every print redraw; read non-reactively in the render loop. */
+  printVersions: Record<string, number>
+
+  openProduct: (productId: string) => void
+  backToShop: () => void
 
   setPhoto: (photo: PhotoLayer | null) => void
   updatePhoto: (patch: Partial<PhotoLayer>) => void
@@ -51,9 +66,11 @@ type DesignState = {
   applyCrop: () => void
   cancelCrop: () => void
 
-  setPrintCanvas: (canvas: HTMLCanvasElement | null) => void
-  markPrintDirty: () => void
+  setPrintCanvas: (productId: string, canvas: HTMLCanvasElement) => void
+  markPrintDirty: (productId: string) => void
 }
+
+const emptySlot = (): DesignSlot => ({ design: { photo: null }, past: [], future: [] })
 
 export const useDesignStore = create<DesignState>()((set, get) => {
   /** Record the current design in history and replace it. */
@@ -68,13 +85,36 @@ export const useDesignStore = create<DesignState>()((set, get) => {
     design.photo && design.photo.id === selectedId ? selectedId : null
 
   return {
-    design: { photo: null },
-    past: [],
-    future: [],
+    view: 'shop',
+    productId: PRODUCTS[0].id,
+    parked: {},
+    ...emptySlot(),
     selectedId: null,
     cropDraft: null,
-    printCanvas: null,
-    printVersion: 0,
+    printCanvases: {},
+    printVersions: {},
+
+    openProduct: (productId) => {
+      const s = get()
+      log.info('view', `edit ${productId}`)
+      if (productId === s.productId) {
+        set({ view: 'edit' })
+        return
+      }
+      const { [productId]: slot = emptySlot(), ...rest } = s.parked
+      set({
+        view: 'edit',
+        productId,
+        parked: { ...rest, [s.productId]: { design: s.design, past: s.past, future: s.future } },
+        ...slot,
+        selectedId: null,
+        cropDraft: null,
+      })
+    },
+    backToShop: () => {
+      log.info('view', 'shop')
+      set({ view: 'shop', selectedId: null, cropDraft: null })
+    },
 
     setPhoto: (photo) => {
       log.info('design', photo ? 'photo placed' : 'photo removed', photo ?? undefined)
@@ -136,7 +176,9 @@ export const useDesignStore = create<DesignState>()((set, get) => {
       set({ cropDraft: null })
     },
 
-    setPrintCanvas: (printCanvas) => set({ printCanvas }),
-    markPrintDirty: () => set((s) => ({ printVersion: s.printVersion + 1 })),
+    setPrintCanvas: (productId, canvas) =>
+      set((s) => ({ printCanvases: { ...s.printCanvases, [productId]: canvas } })),
+    markPrintDirty: (productId) =>
+      set((s) => ({ printVersions: { ...s.printVersions, [productId]: (s.printVersions[productId] ?? 0) + 1 } })),
   }
 })
