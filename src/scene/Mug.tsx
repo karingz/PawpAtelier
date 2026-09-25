@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useThree, type ThreeElements } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { MugSpec } from '../config/products'
+import { log } from '../debug/log'
 import { useDesignStore } from '../store/designStore'
 
 /** Scene units per inch (1 unit = 10 cm). */
@@ -46,7 +47,7 @@ export function Mug({ spec, ...groupProps }: Props) {
   useEffect(() => () => ceramic.dispose(), [ceramic])
 
   return (
-    <group {...groupProps}>
+    <group name="mug" {...groupProps}>
       {/* Outer body */}
       <mesh castShadow material={ceramic}>
         <cylinderGeometry args={[radius, radius, height, 96, 1, true]} />
@@ -89,7 +90,7 @@ export function Mug({ spec, ...groupProps }: Props) {
 }
 
 /**
- * A CanvasTexture over the shared print canvas that re-uploads whenever the
+ * A CanvasTexture over the shared (fixed-size) print canvas that re-uploads whenever the
  * editor redraws. Reads the store inside the frame loop, so drags never re-render React.
  */
 function useLiveCanvasTexture() {
@@ -105,21 +106,17 @@ function useLiveCanvasTexture() {
   }, [canvas, maxAnisotropy])
   useEffect(() => () => texture?.dispose(), [texture])
 
-  const seen = useRef({ version: -1, width: 0, height: 0 })
+  useEffect(() => {
+    if (canvas) log.debug('mug', `print texture ${canvas.width}x${canvas.height}`)
+  }, [canvas])
+
+  const seenVersion = useRef(-1)
   useFrame(() => {
-    if (!texture || !canvas) return
+    if (!texture) return
     const { printVersion } = useDesignStore.getState()
-    const last = seen.current
-    if (canvas.width !== last.width || canvas.height !== last.height) {
-      // Backing canvas was resized: drop the GPU copy so it is re-allocated at the new size.
-      texture.dispose()
-      last.width = canvas.width
-      last.height = canvas.height
-      last.version = -1
-    }
-    if (printVersion !== last.version) {
+    if (printVersion !== seenVersion.current) {
       texture.needsUpdate = true
-      last.version = printVersion
+      seenVersion.current = printVersion
     }
   })
 

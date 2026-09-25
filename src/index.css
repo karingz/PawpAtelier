@@ -130,6 +130,17 @@ button {
   cursor: default;
 }
 
+.btn--icon {
+  width: 42px;
+  padding: 10px 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.toolbar__spacer {
+  flex: 1;
+}
+
 .btn--primary {
   background: var(--accent);
   border-color: var(--accent);

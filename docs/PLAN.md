@@ -75,7 +75,7 @@ The customization is always shown live on a 3D model. Pan/rotate/zoom is intuiti
 |---|---|---|---|
 | 0 | Decide | Target market (US/Korea), fulfillment method, 3–4 launch products, name | Name done |
 | 1 | Viewer prototype | Vite + R3F app, placeholder mug, springy clamped controls, photo upload textured live | **Done** |
-| 2 | Editor core | Konva canvas → 3D texture; move/scale/rotate/crop; undo/redo | Move/scale/rotate done |
+| 2 | Editor core | Konva canvas → 3D texture; move/scale/rotate/crop; undo/redo | **Done** (move/scale/rotate, crop, undo/redo) |
 | 3 | Blender scene v1 | Studio diorama, baked lighting, GLB export (parallel with 1–2) | |
 | 4 | Integration | Shop view ↔ edit view camera flights, hover bounces, loading screen | |
 | 5 | Content & effects | Templates (stickers, backgrounds, themes, text, emojis), filters, background removal, cartoonize | |

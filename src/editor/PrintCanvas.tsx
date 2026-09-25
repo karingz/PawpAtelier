@@ -1,12 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type Konva from 'konva'
-import { Image as KImage, Layer, Line, Rect, Stage, Transformer } from 'react-konva'
+import { Group, Image as KImage, Layer, Line, Rect, Stage, Transformer } from 'react-konva'
 import { DESIGN_UNITS_PER_INCH, designSize, type MugSpec } from '../config/products'
-import { useDesignStore } from '../store/designStore'
+import { useDesignStore, type PhotoLayer } from '../store/designStore'
+import { log } from '../debug/log'
+import { clampBox, fullImageBox, type Box } from './crop'
 import { useHtmlImage } from './useHtmlImage'
 
 const SAFE_INSET = 0.125 * DESIGN_UNITS_PER_INCH
 const MIN_PHOTO_SIZE = 40
+const ACCENT = '#d9607f'
 
 type Props = { spec: MugSpec }
 
@@ -22,14 +25,16 @@ export function PrintCanvas({ spec }: Props) {
   const transformerRef = useRef<Konva.Transformer>(null)
   const [displayWidth, setDisplayWidth] = useState(0)
 
-  const photo = useDesignStore((s) => s.photo)
+  const photo = useDesignStore((s) => s.design.photo)
   const selectedId = useDesignStore((s) => s.selectedId)
+  const cropDraft = useDesignStore((s) => s.cropDraft)
   const updatePhoto = useDesignStore((s) => s.updatePhoto)
   const select = useDesignStore((s) => s.select)
   const image = useHtmlImage(photo?.src)
 
   const scale = displayWidth / design.width
   const displayHeight = design.height * scale
+  const cropping = !!(cropDraft && photo && image)
 
   // Track the container width so the stage stays responsive.
   useLayoutEffect(() => {
@@ -43,38 +48,53 @@ export function PrintCanvas({ spec }: Props) {
   }, [])
 
   // Keep the print layer's backing canvas at preview-texture resolution regardless of
-  // on-screen size, and publish it to the 3D scene.
+  // on-screen size.
   useEffect(() => {
     const layer = printLayerRef.current
     if (!layer || displayWidth === 0) return
     layer.getCanvas().setPixelRatio(spec.previewTextureWidth / displayWidth)
     layer.batchDraw()
+    const c = layer.getCanvas()._canvas
+    log.debug('editor', `print canvas ${c.width}x${c.height} (display ${displayWidth}px)`)
   }, [displayWidth, spec.previewTextureWidth])
 
+  // Publish finished frames to the 3D scene. The layer's own canvas is cleared and resized
+  // whenever the stage resizes, so the product samples a fixed-size copy made after each
+  // complete draw instead; otherwise it can catch a blank canvas and flash black.
   const stageReady = displayWidth > 0
   useEffect(() => {
     const layer = printLayerRef.current
     if (!layer) return
+    const texture = document.createElement('canvas')
+    texture.width = spec.previewTextureWidth
+    texture.height = Math.round((spec.previewTextureWidth * design.height) / design.width)
+    const ctx = texture.getContext('2d')!
     const { setPrintCanvas, markPrintDirty } = useDesignStore.getState()
-    setPrintCanvas(layer.getCanvas()._canvas)
-    layer.on('draw', markPrintDirty)
-    markPrintDirty()
+
+    const publish = () => {
+      ctx.drawImage(layer.getCanvas()._canvas, 0, 0, texture.width, texture.height)
+      markPrintDirty()
+    }
+    setPrintCanvas(texture)
+    layer.on('draw', publish)
+    layer.batchDraw()
     return () => {
-      layer.off('draw', markPrintDirty)
+      layer.off('draw', publish)
       setPrintCanvas(null)
     }
-  }, [stageReady])
+  }, [stageReady, spec.previewTextureWidth, design.width, design.height])
 
-  // Attach the transform handles to the selected photo.
+  // Attach the transform handles to the selected photo (hidden while cropping).
   useEffect(() => {
     const tr = transformerRef.current
     if (!tr) return
-    const selected = photo && selectedId === photo.id && photoRef.current
+    const selected = !cropping && photo && selectedId === photo.id && photoRef.current
     tr.nodes(selected ? [selected] : [])
     tr.getLayer()?.batchDraw()
-  }, [photo, selectedId, image])
+  }, [photo, selectedId, image, cropping])
 
   const deselectOnEmpty = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    if (cropping) return
     if (e.target === e.target.getStage() || e.target.name() === 'background') select(null)
   }
 
@@ -100,10 +120,24 @@ export function PrintCanvas({ spec }: Props) {
           >
             <Layer ref={printLayerRef}>
               <Rect name="background" width={design.width} height={design.height} fill={spec.color} />
-              {photo && image && (
+              {photo && image && cropping && cropDraft && (
+                // Live crop preview on the product: the full image clipped to the draft box.
+                <PhotoFrame photo={photo} listening={false}>
+                  <Group clipX={cropDraft.x} clipY={cropDraft.y} clipWidth={cropDraft.width} clipHeight={cropDraft.height}>
+                    <FullImage photo={photo} image={image} />
+                  </Group>
+                </PhotoFrame>
+              )}
+              {photo && image && !cropping && (
                 <KImage
                   ref={photoRef}
                   image={image}
+                  crop={{
+                    x: photo.crop.x * photo.naturalWidth,
+                    y: photo.crop.y * photo.naturalHeight,
+                    width: photo.crop.width * photo.naturalWidth,
+                    height: photo.crop.height * photo.naturalHeight,
+                  }}
                   x={photo.x}
                   y={photo.y}
                   width={photo.width}
@@ -146,8 +180,8 @@ export function PrintCanvas({ spec }: Props) {
                 enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
                 anchorSize={14}
                 anchorCornerRadius={7}
-                anchorStroke="#d9607f"
-                borderStroke="#d9607f"
+                anchorStroke={ACCENT}
+                borderStroke={ACCENT}
                 rotateAnchorOffset={24}
                 boundBoxFunc={(oldBox, newBox) =>
                   Math.abs(newBox.width) < MIN_PHOTO_SIZE * scale ||
@@ -156,6 +190,9 @@ export function PrintCanvas({ spec }: Props) {
                     : newBox
                 }
               />
+              {photo && image && cropping && cropDraft && (
+                <CropEditor photo={photo} image={image} draft={cropDraft} />
+              )}
             </Layer>
           </Stage>
         )}
@@ -166,5 +203,90 @@ export function PrintCanvas({ spec }: Props) {
         <span>handle side →</span>
       </div>
     </div>
+  )
+}
+
+/** A group in the photo's local frame: origin at its center, rotated with it. */
+function PhotoFrame({ photo, children, listening }: { photo: PhotoLayer; children: ReactNode; listening?: boolean }) {
+  return (
+    <Group x={photo.x} y={photo.y} rotation={photo.rotation} listening={listening}>
+      {children}
+    </Group>
+  )
+}
+
+function FullImage({ photo, image, opacity }: { photo: PhotoLayer; image: HTMLImageElement; opacity?: number }) {
+  const full = fullImageBox(photo)
+  return <KImage image={image} {...full} opacity={opacity} listening={false} />
+}
+
+/**
+ * Crop mode overlay: the whole source image dimmed, the kept region bright, and a
+ * free-aspect box with handles. The box is clamped to the image when a gesture ends.
+ */
+function CropEditor({ photo, image, draft }: { photo: PhotoLayer; image: HTMLImageElement; draft: Box }) {
+  const rectRef = useRef<Konva.Rect>(null)
+  const trRef = useRef<Konva.Transformer>(null)
+  const setCropDraft = useDesignStore((s) => s.setCropDraft)
+  // The rect is driven imperatively during gestures; its props only seed it.
+  const [seed] = useState(draft)
+  const bounds = fullImageBox(photo)
+
+  useEffect(() => {
+    const rect = rectRef.current
+    const tr = trRef.current
+    if (!rect || !tr) return
+    tr.nodes([rect])
+    tr.getLayer()?.batchDraw()
+  }, [])
+
+  const readBox = (): Box | null => {
+    const n = rectRef.current
+    if (!n) return null
+    return { x: n.x(), y: n.y(), width: n.width() * n.scaleX(), height: n.height() * n.scaleY() }
+  }
+
+  const onChange = () => {
+    const box = readBox()
+    if (box) setCropDraft(box)
+  }
+
+  const onEnd = () => {
+    const n = rectRef.current
+    const box = readBox()
+    if (!n || !box) return
+    const clamped = clampBox(box, bounds)
+    n.setAttrs({ ...clamped, scaleX: 1, scaleY: 1 })
+    setCropDraft(clamped)
+  }
+
+  return (
+    <PhotoFrame photo={photo}>
+      <FullImage photo={photo} image={image} opacity={0.3} />
+      <Group clipX={draft.x} clipY={draft.y} clipWidth={draft.width} clipHeight={draft.height} listening={false}>
+        <FullImage photo={photo} image={image} />
+      </Group>
+      <Rect
+        ref={rectRef}
+        {...seed}
+        fill="rgba(255,255,255,0.01)"
+        draggable
+        onDragMove={onChange}
+        onDragEnd={onEnd}
+        onTransform={onChange}
+        onTransformEnd={onEnd}
+      />
+      <Transformer
+        ref={trRef}
+        rotateEnabled={false}
+        keepRatio={false}
+        flipEnabled={false}
+        anchorSize={14}
+        anchorCornerRadius={3}
+        anchorStroke={ACCENT}
+        borderStroke={ACCENT}
+        borderDash={[4, 4]}
+      />
+    </PhotoFrame>
   )
 }

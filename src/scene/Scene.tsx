@@ -1,6 +1,9 @@
 import { Canvas } from '@react-three/fiber'
-import { ContactShadows, Environment, Float, Lightformer } from '@react-three/drei'
+import { ContactShadows, Environment, Lightformer } from '@react-three/drei'
+import type { Scene as ThreeScene, WebGLRenderer } from 'three'
 import type { MugSpec } from '../config/products'
+import { log } from '../debug/log'
+import { IdleFloat } from './IdleFloat'
 import { Mug } from './Mug'
 import { SpringyControls } from './SpringyControls'
 
@@ -13,6 +16,10 @@ export function Scene({ spec }: Props) {
       dpr={[1, 2]}
       camera={{ position: [0, 0.4, 3.2], fov: 30 }}
       gl={{ antialias: true }}
+      onCreated={({ gl, scene }) => {
+        logRenderer(gl)
+        exposeForDebugging(scene)
+      }}
     >
       <color attach="background" args={['#f6efe6']} />
       <ambientLight intensity={0.5} />
@@ -27,12 +34,29 @@ export function Scene({ spec }: Props) {
       </Environment>
 
       <SpringyControls rest={[0.08, Math.PI / 2 - 0.4]}>
-        <Float speed={1.6} rotationIntensity={0.15} floatIntensity={0.35} floatingRange={[-0.03, 0.03]}>
+        <IdleFloat>
           <Mug spec={spec} />
-        </Float>
+        </IdleFloat>
       </SpringyControls>
 
       <ContactShadows position={[0, -0.6, 0]} opacity={0.35} scale={3} blur={2.4} far={1.2} />
     </Canvas>
   )
+}
+
+function logRenderer(gl: WebGLRenderer) {
+  const ctx = gl.getContext()
+  const info = ctx.getExtension('WEBGL_debug_renderer_info')
+  log.info('scene', 'WebGL ready', {
+    webgl2: gl.capabilities.isWebGL2,
+    gpu: info ? ctx.getParameter(info.UNMASKED_RENDERER_WEBGL) : 'unknown',
+    maxTexture: gl.capabilities.maxTextureSize,
+    pixelRatio: gl.getPixelRatio(),
+  })
+  gl.domElement.addEventListener('webglcontextlost', () => log.error('scene', 'WebGL context lost'))
+}
+
+/** Dev only: `__pawpScene` in the browser console to inspect the three.js scene. */
+function exposeForDebugging(scene: ThreeScene) {
+  if (import.meta.env.DEV) Object.assign(window, { __pawpScene: scene })
 }

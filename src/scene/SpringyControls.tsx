@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { Group } from 'three'
+import { log } from '../debug/log'
 
 type Props = {
   children: ReactNode
@@ -69,6 +70,7 @@ export function SpringyControls({
       if (e.pointerId !== s.pointerId) return
       s.dragging = false
       s.pointerId = -1
+      log.debug('controls', `release spin=${s.spin.x.toFixed(2)} tilt=${s.tilt.x.toFixed(2)} v=${s.spin.v.toFixed(1)}`)
       dom.style.cursor = 'grab'
     }
     dom.style.cursor = 'grab'
