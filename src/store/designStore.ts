@@ -6,23 +6,54 @@ import { applyCropBox, visibleBox, type Box } from '../editor/crop'
 /** Normalized (0..1) region of the source image that is shown. */
 export type Crop = { x: number; y: number; width: number; height: number }
 
-/** A photo placed on the print area. Positions are in design units, (x, y) is the center. */
-export type PhotoLayer = {
-  id: string
+/** Placement in design units: (x, y) is the center, rotation in degrees. */
+type Placement = { id: string; x: number; y: number; rotation: number }
+
+export type PhotoLayer = Placement & {
+  kind: 'photo'
   src: string
   naturalWidth: number
   naturalHeight: number
   crop: Crop
-  x: number
-  y: number
   width: number
   height: number
-  rotation: number
+  /** Set when `src` is a background-removed cutout: the photo it was made from. */
+  originalSrc?: string
 }
+
+export type StickerLayer = Placement & {
+  kind: 'sticker'
+  stickerId: string
+  src: string
+  width: number
+  height: number
+}
+
+/** Text is sized by its font size; its box is measured when drawn. */
+export type TextLayer = Placement & {
+  kind: 'text'
+  text: string
+  fontId: string
+  fontSize: number
+  fill: string
+  /** Outline color, or null for none. */
+  outline: string | null
+}
+
+export type Layer = PhotoLayer | StickerLayer | TextLayer
+export type LayerPatch = Partial<PhotoLayer> | Partial<StickerLayer> | Partial<TextLayer>
+
+export type Background =
+  /** The product's own color. */
+  | { kind: 'none' }
+  | { kind: 'solid'; color: string }
+  | { kind: 'pattern'; pattern: string; paletteId: string; scale: number }
 
 /** Everything that ends up on the product. Plain JSON: this is what undo/redo snapshots. */
 export type Design = {
-  photo: PhotoLayer | null
+  background: Background
+  /** Bottom to top. */
+  layers: Layer[]
 }
 
 const HISTORY_LIMIT = 100
@@ -55,8 +86,12 @@ type DesignState = {
   openProduct: (productId: string) => void
   backToShop: () => void
 
-  setPhoto: (photo: PhotoLayer | null) => void
-  updatePhoto: (patch: Partial<PhotoLayer>) => void
+  addLayer: (layer: Layer) => void
+  updateLayer: (id: string, patch: LayerPatch) => void
+  removeLayer: (id: string) => void
+  /** Move a layer up (+1) or down (-1) the stack. */
+  moveLayer: (id: string, step: 1 | -1) => void
+  setBackground: (background: Background) => void
   undo: () => void
   redo: () => void
   select: (id: string | null) => void
@@ -70,7 +105,11 @@ type DesignState = {
   markPrintDirty: (productId: string) => void
 }
 
-const emptySlot = (): DesignSlot => ({ design: { photo: null }, past: [], future: [] })
+const emptySlot = (): DesignSlot => ({ design: { background: { kind: 'none' }, layers: [] }, past: [], future: [] })
+
+export function selectedLayer(s: { design: Design; selectedId: string | null }): Layer | undefined {
+  return s.design.layers.find((l) => l.id === s.selectedId)
+}
 
 export const useDesignStore = create<DesignState>()((set, get) => {
   /** Record the current design in history and replace it. */
@@ -82,7 +121,13 @@ export const useDesignStore = create<DesignState>()((set, get) => {
     }))
 
   const keepSelection = (design: Design, selectedId: string | null) =>
-    design.photo && design.photo.id === selectedId ? selectedId : null
+    design.layers.some((l) => l.id === selectedId) ? selectedId : null
+
+  const mapLayers = (fn: (layers: Layer[]) => Layer[]) => {
+    const { design } = get()
+    const layers = fn(design.layers)
+    if (JSON.stringify(layers) !== JSON.stringify(design.layers)) commit({ ...design, layers })
+  }
 
   return {
     view: 'shop',
@@ -116,18 +161,35 @@ export const useDesignStore = create<DesignState>()((set, get) => {
       set({ view: 'shop', selectedId: null, cropDraft: null })
     },
 
-    setPhoto: (photo) => {
-      log.info('design', photo ? 'photo placed' : 'photo removed', photo ?? undefined)
-      commit({ ...get().design, photo })
-      set({ selectedId: photo?.id ?? null, cropDraft: null })
+    addLayer: (layer) => {
+      log.info('design', `add ${layer.kind}`, layer)
+      mapLayers((layers) => [...layers, layer])
+      set({ selectedId: layer.id, cropDraft: null })
     },
-    updatePhoto: (patch) => {
-      const { photo } = get().design
-      if (!photo) return
-      const next = { ...photo, ...patch }
-      if (JSON.stringify(next) === JSON.stringify(photo)) return
-      log.debug('design', 'photo updated', patch)
-      commit({ ...get().design, photo: next })
+    updateLayer: (id, patch) => {
+      log.debug('design', `update ${id.slice(0, 8)}`, patch)
+      mapLayers((layers) => layers.map((l) => (l.id === id ? ({ ...l, ...patch } as Layer) : l)))
+    },
+    removeLayer: (id) => {
+      log.info('design', `remove ${id.slice(0, 8)}`)
+      mapLayers((layers) => layers.filter((l) => l.id !== id))
+      set((s) => ({ selectedId: s.selectedId === id ? null : s.selectedId, cropDraft: null }))
+    },
+    moveLayer: (id, step) =>
+      mapLayers((layers) => {
+        const i = layers.findIndex((l) => l.id === id)
+        const j = i + step
+        if (i < 0 || j < 0 || j >= layers.length) return layers
+        const next = [...layers]
+        ;[next[i], next[j]] = [next[j], next[i]]
+        log.debug('design', `move ${id.slice(0, 8)} ${step > 0 ? 'up' : 'down'}`)
+        return next
+      }),
+    setBackground: (background) => {
+      const { design } = get()
+      if (JSON.stringify(background) === JSON.stringify(design.background)) return
+      log.info('design', 'background', background)
+      commit({ ...design, background })
     },
 
     undo: () => {
@@ -156,20 +218,22 @@ export const useDesignStore = create<DesignState>()((set, get) => {
     },
     select: (selectedId) => set({ selectedId }),
 
+    /** Crops the selected layer, which must be a photo. */
     startCrop: () => {
-      const { photo } = get().design
-      if (!photo) return
+      const photo = selectedLayer(get())
+      if (photo?.kind !== 'photo') return
       log.debug('crop', 'start', photo.crop)
-      set({ cropDraft: visibleBox(photo), selectedId: photo.id })
+      set({ cropDraft: visibleBox(photo) })
     },
     setCropDraft: (cropDraft) => set({ cropDraft }),
     applyCrop: () => {
-      const { design, cropDraft } = get()
+      const { cropDraft } = get()
+      const photo = selectedLayer(get())
       set({ cropDraft: null })
-      if (!design.photo || !cropDraft) return
-      const patch = applyCropBox(design.photo, cropDraft)
+      if (photo?.kind !== 'photo' || !cropDraft) return
+      const patch = applyCropBox(photo, cropDraft)
       log.info('crop', 'applied', patch.crop)
-      get().updatePhoto(patch)
+      get().updateLayer(photo.id, patch)
     },
     cancelCrop: () => {
       log.debug('crop', 'cancelled')

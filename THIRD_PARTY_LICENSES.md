@@ -31,3 +31,10 @@ rendered text on products we sell; it forbids selling the font files on their ow
 | Gowun Dodum 고운돋움 | `@fontsource/gowun-dodum` | OFL-1.1 | Copyright 2021 The Gowun Dodum Project Authors |
 
 OFL-1.1 full text: [licenses/OFL-1.1.txt](licenses/OFL-1.1.txt).
+
+## AI models and libraries
+
+| Component | Used for | License | Commercial use |
+|---|---|---|---|
+| [transformers.js](https://github.com/huggingface/transformers.js) (`@huggingface/transformers`) | Runs AI models in the browser | Apache-2.0 | Yes |
+| [BRIA RMBG-1.4](https://huggingface.co/briaai/RMBG-1.4) (downloaded at runtime, not bundled) | One-click background removal | bria-rmbg-1.4 | **No.** Development only; listed in `src/config/non-commercial.json` and must be replaced before launch |

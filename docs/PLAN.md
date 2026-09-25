@@ -31,7 +31,7 @@ The customization is always shown live on a 3D model. Pan/rotate/zoom is intuiti
 | 2D design canvas | Konva (react-konva) |
 | State | Zustand (undo/redo, design history) |
 | Filters | Konva built-in filters + custom WebGL shaders |
-| Background removal | @imgly/background-removal (browser) or rembg (server) |
+| Background removal (누끼) | One click: **BiRefNet HR-matting** (MIT) on a GPU server. Lasso/tap fallback: **SlimSAM** (Apache-2.0) in the browser, edges refined on the server. Not `@imgly` (AGPL) or BRIA RMBG (non-commercial), and rembg only with its BiRefNet/ISNet models |
 | Backend (later) | Python FastAPI + Pillow + OpenCV + rembg (HQ effects, 300-DPI print file render) |
 | Storage | Cloudflare R2 or S3 (design JSON + preview PNG + print file) |
 | Hosting | Vercel or Cloudflare Pages |
@@ -78,10 +78,18 @@ The customization is always shown live on a 3D model. Pan/rotate/zoom is intuiti
 | 2 | Editor core | Konva canvas → 3D texture; move/scale/rotate/crop; undo/redo | **Done** (move/scale/rotate, crop, undo/redo) |
 | 3 | Blender scene v1 | Studio diorama, baked lighting, GLB export (parallel with 1–2) | |
 | 4 | Integration | Shop view ↔ edit view camera flights, hover bounces, loading screen | **Done** on a placeholder table (mug + tumbler); swap in the room after Phase 3 |
-| 5 | Content & effects | Templates (stickers, backgrounds, themes, text, emojis), filters, background removal, cartoonize | Asset sources vetted: [RESOURCES.md](RESOURCES.md) |
+| 5 | Content & effects | Templates (stickers, backgrounds, themes, text, emojis), filters, background removal, cartoonize | Templates **done**; one-click 누끼 **done (dev model, non-commercial)**; next: lasso 누끼, filters, cartoonize. Assets: [RESOURCES.md](RESOURCES.md) |
 | 6 | Randomizer | Reckless slider, seeded rolls, history strip | |
 | 7 | Checkout | Design storage + Shopify (or Korean PG) integration | |
 | 8 | Polish | Mobile optimization, sound, packing animation, more product models | |
+
+## Go-live checklist
+Must be done before the shop takes real orders.
+- [ ] **Replace non-commercial dependencies.** Everything listed in `src/config/non-commercial.json`
+  must be gone. `PAWP_LIVE=1 npm run build` refuses to build while the list isn't empty.
+  - BRIA RMBG-1.4 (one-click background removal, `src/editor/cutout/bgRemoval.worker.ts`):
+    switch to BiRefNet HR-matting (MIT) on a GPU server, or buy a BRIA commercial license.
+- [ ] Always build the live site with `PAWP_LIVE=1 npm run build`.
 
 ## 8. Constraints / Risks
 - **Mobile first.** Most traffic is expected from Instagram on phones.

@@ -1,0 +1,12 @@
+{
+  "$comment": "Dependencies allowed in development but NOT in the paid live shop. Must be empty before launch: `PAWP_LIVE=1 npm run build` fails while anything is listed. See docs/PLAN.md > Go-live checklist.",
+  "dependencies": [
+    {
+      "name": "BRIA RMBG-1.4",
+      "license": "bria-rmbg-1.4 (non-commercial; commercial use needs an agreement with BRIA)",
+      "licenseUrl": "https://huggingface.co/briaai/RMBG-1.4",
+      "usedFor": "One-click background removal (src/editor/cutout/bgRemoval.worker.ts)",
+      "replaceWith": "BiRefNet HR-matting (MIT) on a GPU server, or a paid BRIA license"
+    }
+  ]
+}

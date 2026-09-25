@@ -187,7 +187,6 @@ button {
   .app__editor {
     flex: 1;
     max-width: 560px;
-    justify-content: center;
     border-top: none;
     border-left: 1px solid var(--line);
     border-radius: 20px 0 0 20px;
@@ -316,5 +315,239 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .loading__paw {
     animation: none;
+  }
+}
+
+/* Editor tabs and panels */
+.toolbar {
+  align-items: center;
+}
+
+.toolbar__label {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.toolbar__hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.btn--small {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+.btn--danger {
+  color: #b23a55;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs__tab {
+  flex: 1;
+  padding: 10px 4px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tabs__tab--active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.panel__title {
+  margin: 4px 0 -4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip--active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.sticker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.sticker-grid__item {
+  aspect-ratio: 1;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sticker-grid__item:hover {
+  transform: scale(1.12) rotate(-4deg);
+  border-color: var(--line);
+}
+
+.sticker-grid__item:active {
+  transform: scale(0.9);
+}
+
+.sticker-grid__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.text-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.text-settings__input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.font-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+.font-list__item {
+  overflow: hidden;
+  padding: 8px 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 1.05rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.font-list__item--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.swatch:hover {
+  transform: scale(1.12);
+}
+
+.swatch--active {
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
+}
+
+.pattern-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.pattern-grid__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.pattern-grid__item--active {
+  border-color: var(--accent);
+}
+
+.pattern-grid__swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.pattern-grid__swatch--plain {
+  background: #fff;
+}
+
+.btn--magic {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.btn--busy:disabled {
+  opacity: 1;
+  cursor: progress;
+  background: linear-gradient(90deg, #fff 0%, #ffe4ec 50%, #fff 100%) 0 0 / 200% 100%;
+  animation: busy-shimmer 1.2s linear infinite;
+}
+
+@keyframes busy-shimmer {
+  to {
+    background-position: -200% 0;
   }
 }

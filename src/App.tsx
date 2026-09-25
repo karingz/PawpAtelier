@@ -1,10 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react'
-import { DESIGN_UNITS_PER_INCH, PRODUCTS, designSize, getProduct, type ProductSpec } from './config/products'
-import { log } from './debug/log'
-import { PrintCanvas } from './editor/PrintCanvas'
-import { loadImageSize } from './editor/useHtmlImage'
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { PRODUCTS, getProduct } from './config/products'
+import { Editor } from './editor/Editor'
 import { Scene } from './scene/Scene'
-import { useDesignStore, type PhotoLayer } from './store/designStore'
+import { useDesignStore } from './store/designStore'
 
 export default function App() {
   const view = useDesignStore((s) => s.view)
@@ -15,7 +13,7 @@ export default function App() {
   const shopRef = useRef<HTMLElement>(null)
   const shopInset = useCoveredFraction(viewerRef, shopRef, view === 'shop')
 
-  useUndoShortcuts()
+  useEditorShortcuts()
 
   return (
     <div className={`app app--${view}`}>
@@ -62,99 +60,6 @@ function ShopSheet({ ref }: { ref: RefObject<HTMLElement | null> }) {
   )
 }
 
-function Editor({ spec }: { spec: ProductSpec }) {
-  const fileInput = useRef<HTMLInputElement>(null)
-  const photo = useDesignStore((s) => s.design.photo)
-  const canUndo = useDesignStore((s) => s.past.length > 0)
-  const canRedo = useDesignStore((s) => s.future.length > 0)
-  const cropping = useDesignStore((s) => s.cropDraft !== null)
-  const { setPhoto, updatePhoto, undo, redo, startCrop, applyCrop, cancelCrop } = useDesignStore.getState()
-
-  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    // Blob URLs are kept for the session: undo can bring back a replaced photo.
-    const src = URL.createObjectURL(file)
-    try {
-      const size = await loadImageSize(src)
-      const next: PhotoLayer = {
-        id: crypto.randomUUID(),
-        src,
-        naturalWidth: size.width,
-        naturalHeight: size.height,
-        crop: { x: 0, y: 0, width: 1, height: 1 },
-        ...fitToPrintArea(spec, size),
-        rotation: 0,
-      }
-      log.info('upload', `${file.name} ${size.width}x${size.height}, ${Math.round(file.size / 1024)} KB`, {
-        product: spec.id,
-        type: file.type,
-        effectiveDpi: effectiveDpi(next),
-      })
-      setPhoto(next)
-    } catch (err) {
-      URL.revokeObjectURL(src)
-      log.error('upload', `could not decode ${file.name}`, err)
-      alert("That file couldn't be opened as an image.")
-    }
-  }
-
-  const recenter = () => {
-    const { width, height } = designSize(spec)
-    updatePhoto({ x: width / 2, y: height / 2, rotation: 0 })
-  }
-
-  return (
-    <section className="app__editor">
-      {cropping ? (
-        <div className="toolbar">
-          <button className="btn btn--primary" onClick={applyCrop}>
-            Done
-          </button>
-          <button className="btn" onClick={cancelCrop}>
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <div className="toolbar">
-          <button className="btn btn--primary" onClick={() => fileInput.current?.click()}>
-            {photo ? 'Change photo' : 'Upload pet photo'}
-          </button>
-          <button className="btn" onClick={startCrop} disabled={!photo}>
-            Crop
-          </button>
-          <button className="btn" onClick={recenter} disabled={!photo}>
-            Center
-          </button>
-          <button className="btn" onClick={() => setPhoto(null)} disabled={!photo}>
-            Remove
-          </button>
-          <span className="toolbar__history">
-            <button className="btn btn--icon" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo (Ctrl+Z)">
-              ↶
-            </button>
-            <button className="btn btn--icon" onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo (Ctrl+Shift+Z)">
-              ↷
-            </button>
-          </span>
-          <input ref={fileInput} type="file" accept="image/*" hidden onChange={onFile} />
-        </div>
-      )}
-
-      <PrintCanvas spec={spec} />
-
-      <p className="app__note">
-        {cropping
-          ? 'Drag the box or its handles to choose what to keep.'
-          : photo
-            ? 'Drag to move. Pull the corners to resize, the top handle to rotate.'
-            : 'Your photo appears here and on the product. The dashed line is the safe print area.'}
-      </p>
-    </section>
-  )
-}
-
 /** How much of `base`'s height `overlay` covers from the bottom (0..1), kept up to date. */
 function useCoveredFraction(
   base: RefObject<HTMLElement | null>,
@@ -194,12 +99,12 @@ function LoadingScreen({ ready }: { ready: boolean }) {
   )
 }
 
-/** Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo, Esc cancels a crop. Editor only. */
-function useUndoShortcuts() {
+/** Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo, Delete removes, Esc cancels a crop. Editor only. */
+function useEditorShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      const { view, undo, redo, cancelCrop, cropDraft } = useDesignStore.getState()
+      const { view, undo, redo, cancelCrop, cropDraft, selectedId, removeLayer } = useDesignStore.getState()
       if (view !== 'edit') return
       const mod = e.ctrlKey || e.metaKey
       const key = e.key.toLowerCase()
@@ -212,27 +117,12 @@ function useUndoShortcuts() {
         redo()
       } else if (key === 'escape' && cropDraft) {
         cancelCrop()
+      } else if ((key === 'delete' || key === 'backspace') && selectedId && !cropDraft) {
+        e.preventDefault()
+        removeLayer(selectedId)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-}
-
-/** Fit the photo to 90% of the print height, centered (the wrap's center faces front). */
-function fitToPrintArea(spec: ProductSpec, size: { width: number; height: number }) {
-  const design = designSize(spec)
-  const height = design.height * 0.9
-  const width = Math.min((size.width / size.height) * height, design.width * 0.9)
-  return {
-    x: design.width / 2,
-    y: design.height / 2,
-    width,
-    height: width * (size.height / size.width),
-  }
-}
-
-/** Source pixels per printed inch at the photo's current size. */
-function effectiveDpi(p: PhotoLayer) {
-  return Math.round((p.naturalWidth * p.crop.width) / (p.width / DESIGN_UNITS_PER_INCH))
 }

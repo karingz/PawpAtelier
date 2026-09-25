@@ -1,15 +1,26 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type Konva from 'konva'
-import { Group, Image as KImage, Layer, Line, Rect, Stage, Transformer } from 'react-konva'
+import { Group, Image as KImage, Layer as KLayer, Line, Rect, Stage, Text, Transformer } from 'react-konva'
 import { DESIGN_UNITS_PER_INCH, designSize, type ProductSpec } from '../config/products'
-import { useDesignStore, type PhotoLayer } from '../store/designStore'
+import { getFont, loadFontFor } from '../content/fonts'
+import { getPalette, patternTile, TILE } from '../content/patterns'
+import {
+  selectedLayer,
+  useDesignStore,
+  type Background,
+  type Layer,
+  type PhotoLayer,
+  type TextLayer,
+} from '../store/designStore'
 import { log } from '../debug/log'
 import { clampBox, fullImageBox, type Box } from './crop'
-import { useHtmlImage } from './useHtmlImage'
+import { useImages } from './useHtmlImage'
 
 const SAFE_INSET = 0.125 * DESIGN_UNITS_PER_INCH
-const MIN_PHOTO_SIZE = 40
+const MIN_SIZE = 20
 const ACCENT = '#d9607f'
+/** Pattern tiles are rendered at this many pixels per design unit (texture is ~2.4). */
+const PATTERN_DENSITY = 3
 
 type Props = { spec: ProductSpec }
 
@@ -20,25 +31,30 @@ type Props = { spec: ProductSpec }
 export function PrintCanvas({ spec }: Props) {
   const design = designSize(spec)
   const containerRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<Konva.Stage>(null)
   const printLayerRef = useRef<Konva.Layer>(null)
-  const photoRef = useRef<Konva.Image>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   const [displayWidth, setDisplayWidth] = useState(0)
 
-  const photo = useDesignStore((s) => s.design.photo)
+  const { background, layers } = useDesignStore((s) => s.design)
   const selectedId = useDesignStore((s) => s.selectedId)
   const cropDraft = useDesignStore((s) => s.cropDraft)
-  const updatePhoto = useDesignStore((s) => s.updatePhoto)
   const select = useDesignStore((s) => s.select)
-  const image = useHtmlImage(photo?.src)
+  const updateLayer = useDesignStore((s) => s.updateLayer)
+  const selected = useDesignStore(selectedLayer)
+
+  const srcs = useMemo(() => layers.flatMap((l) => (l.kind === 'text' ? [] : [l.src])), [layers])
+  const { images, complete: imagesReady } = useImages(srcs)
+  const fontsVersion = useFontsVersion(layers)
 
   const scale = displayWidth / design.width
   const displayHeight = design.height * scale
-  const cropping = !!(cropDraft && photo && image)
-  // The print layer is only worth publishing once the photo (if any) has decoded.
+  const cropPhoto = cropDraft && selected?.kind === 'photo' && images.get(selected.src) ? selected : null
+
+  // The print layer is only worth publishing once every image has decoded.
   const complete = useRef(false)
   useEffect(() => {
-    complete.current = !photo || !!image
+    complete.current = imagesReady
   })
 
   // Track the container width so the stage stays responsive.
@@ -87,27 +103,37 @@ export function PrintCanvas({ spec }: Props) {
     }
   }, [stageReady, spec])
 
-  // Attach the transform handles to the selected photo (hidden while cropping).
+  // Attach the transform handles to the selected layer (hidden while cropping).
   useEffect(() => {
     const tr = transformerRef.current
-    if (!tr) return
-    const selected = !cropping && photo && selectedId === photo.id && photoRef.current
-    tr.nodes(selected ? [selected] : [])
+    const stage = stageRef.current
+    if (!tr || !stage) return
+    const node = !cropDraft && selectedId ? stage.findOne(`#${selectedId}`) : undefined
+    tr.nodes(node ? [node] : [])
     tr.getLayer()?.batchDraw()
-  }, [photo, selectedId, image, cropping])
+  }, [layers, selectedId, cropDraft, images, fontsVersion])
 
   const deselectOnEmpty = (e: Konva.KonvaEventObject<PointerEvent>) => {
-    if (cropping) return
+    if (cropDraft) return
     if (e.target === e.target.getStage() || e.target.name() === 'background') select(null)
   }
 
-  const commitTransform = () => {
-    const node = photoRef.current
-    if (!node || !photo) return
-    const width = Math.max(MIN_PHOTO_SIZE, node.width() * node.scaleX())
-    const height = Math.max(MIN_PHOTO_SIZE, node.height() * node.scaleY())
-    node.scale({ x: 1, y: 1 })
-    updatePhoto({ x: node.x(), y: node.y(), width, height, rotation: node.rotation() })
+  /** Fold the node's gesture (drag / scale / rotate) back into the layer. */
+  const commit = (layer: Layer) => (e: Konva.KonvaEventObject<Event>) => {
+    const n = e.target
+    const sx = n.scaleX()
+    const sy = n.scaleY()
+    n.scale({ x: 1, y: 1 })
+    const placement = { x: n.x(), y: n.y(), rotation: n.rotation() }
+    if (layer.kind === 'text') {
+      updateLayer(layer.id, { ...placement, fontSize: Math.max(8, layer.fontSize * sx) })
+    } else {
+      updateLayer(layer.id, {
+        ...placement,
+        width: Math.max(MIN_SIZE, layer.width * sx),
+        height: Math.max(MIN_SIZE, layer.height * sy),
+      })
+    }
   }
 
   return (
@@ -115,47 +141,57 @@ export function PrintCanvas({ spec }: Props) {
       <div ref={containerRef} className="print-canvas__stage" style={{ height: displayHeight || undefined }}>
         {stageReady && (
           <Stage
+            ref={stageRef}
             width={displayWidth}
             height={displayHeight}
             scaleX={scale}
             scaleY={scale}
             onPointerDown={deselectOnEmpty}
           >
-            <Layer ref={printLayerRef}>
-              <Rect name="background" width={design.width} height={design.height} fill={spec.color} />
-              {photo && image && cropping && cropDraft && (
-                // Live crop preview on the product: the full image clipped to the draft box.
-                <PhotoFrame photo={photo} listening={false}>
-                  <Group clipX={cropDraft.x} clipY={cropDraft.y} clipWidth={cropDraft.width} clipHeight={cropDraft.height}>
-                    <FullImage photo={photo} image={image} />
-                  </Group>
-                </PhotoFrame>
-              )}
-              {photo && image && !cropping && (
-                <KImage
-                  ref={photoRef}
-                  image={image}
-                  crop={{
-                    x: photo.crop.x * photo.naturalWidth,
-                    y: photo.crop.y * photo.naturalHeight,
-                    width: photo.crop.width * photo.naturalWidth,
-                    height: photo.crop.height * photo.naturalHeight,
-                  }}
-                  x={photo.x}
-                  y={photo.y}
-                  width={photo.width}
-                  height={photo.height}
-                  offsetX={photo.width / 2}
-                  offsetY={photo.height / 2}
-                  rotation={photo.rotation}
-                  draggable
-                  onPointerDown={() => select(photo.id)}
-                  onDragEnd={commitTransform}
-                  onTransformEnd={commitTransform}
-                />
-              )}
-            </Layer>
-            <Layer>
+            <KLayer ref={printLayerRef}>
+              <BackgroundNode background={background} width={design.width} height={design.height} baseColor={spec.color} />
+              {layers.map((layer) => {
+                if (cropPhoto && layer.id === cropPhoto.id) {
+                  // Live crop preview on the product: the full image clipped to the draft box.
+                  return (
+                    <PhotoFrame key={layer.id} photo={cropPhoto} listening={false}>
+                      <Group clipX={cropDraft!.x} clipY={cropDraft!.y} clipWidth={cropDraft!.width} clipHeight={cropDraft!.height}>
+                        <FullImage photo={cropPhoto} image={images.get(cropPhoto.src)!} />
+                      </Group>
+                    </PhotoFrame>
+                  )
+                }
+                const handlers = {
+                  id: layer.id,
+                  draggable: !cropDraft,
+                  listening: !cropDraft,
+                  onPointerDown: () => select(layer.id),
+                  onDragEnd: commit(layer),
+                  onTransformEnd: commit(layer),
+                }
+                if (layer.kind === 'text') {
+                  return <TextNode key={`${layer.id}:${fontsVersion}`} layer={layer} {...handlers} />
+                }
+                const image = images.get(layer.src)
+                if (!image) return null
+                return (
+                  <KImage
+                    key={layer.id}
+                    {...handlers}
+                    image={image}
+                    crop={layer.kind === 'photo' ? sourceCrop(layer) : undefined}
+                    x={layer.x}
+                    y={layer.y}
+                    width={layer.width}
+                    height={layer.height}
+                    offsetX={layer.width / 2}
+                    offsetY={layer.height / 2}
+                    rotation={layer.rotation}
+                  />
+                )
+              })}
+            </KLayer>
+            <KLayer>
               <Rect
                 x={SAFE_INSET}
                 y={SAFE_INSET}
@@ -187,16 +223,15 @@ export function PrintCanvas({ spec }: Props) {
                 borderStroke={ACCENT}
                 rotateAnchorOffset={24}
                 boundBoxFunc={(oldBox, newBox) =>
-                  Math.abs(newBox.width) < MIN_PHOTO_SIZE * scale ||
-                  Math.abs(newBox.height) < MIN_PHOTO_SIZE * scale
+                  Math.abs(newBox.width) < MIN_SIZE * scale || Math.abs(newBox.height) < MIN_SIZE * scale
                     ? oldBox
                     : newBox
                 }
               />
-              {photo && image && cropping && cropDraft && (
-                <CropEditor photo={photo} image={image} draft={cropDraft} />
+              {cropPhoto && cropDraft && (
+                <CropEditor photo={cropPhoto} image={images.get(cropPhoto.src)!} draft={cropDraft} />
               )}
-            </Layer>
+            </KLayer>
           </Stage>
         )}
       </div>
@@ -223,6 +258,111 @@ function printTextureCanvas(spec: ProductSpec) {
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   setPrintCanvas(spec.id, canvas)
   return canvas
+}
+
+function sourceCrop(p: PhotoLayer) {
+  return {
+    x: p.crop.x * p.naturalWidth,
+    y: p.crop.y * p.naturalHeight,
+    width: p.crop.width * p.naturalWidth,
+    height: p.crop.height * p.naturalHeight,
+  }
+}
+
+/**
+ * Bumps whenever the browser finishes loading font files, after asking it to load what the
+ * current text layers need. Canvas text is measured when drawn, so text nodes re-mount on
+ * each bump to re-measure with the real font instead of the fallback.
+ */
+function useFontsVersion(layers: Layer[]) {
+  const [version, setVersion] = useState(0)
+  useEffect(() => {
+    const bump = () => setVersion((v) => v + 1)
+    document.fonts.addEventListener('loadingdone', bump)
+    return () => document.fonts.removeEventListener('loadingdone', bump)
+  }, [])
+  useEffect(() => {
+    for (const l of layers) if (l.kind === 'text') loadFontFor(getFont(l.fontId), l.text)
+  }, [layers])
+  return version
+}
+
+function BackgroundNode({
+  background,
+  width,
+  height,
+  baseColor,
+}: {
+  background: Background
+  width: number
+  height: number
+  baseColor: string
+}) {
+  const common = { name: 'background', width, height }
+  if (background.kind === 'solid') return <Rect {...common} fill={background.color} />
+  if (background.kind === 'pattern') {
+    const palette = getPalette(background.paletteId)
+    if (background.pattern === 'gradient') {
+      return (
+        <Rect
+          {...common}
+          fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+          fillLinearGradientEndPoint={{ x: width, y: height }}
+          fillLinearGradientColorStops={[0, palette.bg, 1, palette.fg]}
+        />
+      )
+    }
+    const tileScale = background.scale / PATTERN_DENSITY
+    return (
+      <Rect
+        {...common}
+        fillPatternImage={patternTile(background.pattern, palette, PATTERN_DENSITY) as unknown as HTMLImageElement}
+        fillPatternScale={{ x: tileScale, y: tileScale }}
+        // Center the pattern on the wrap's front instead of its left edge.
+        fillPatternOffset={{ x: ((width / 2) % (TILE * background.scale)) / tileScale, y: 0 }}
+      />
+    )
+  }
+  return <Rect {...common} fill={baseColor} />
+}
+
+type NodeHandlers = {
+  id: string
+  draggable: boolean
+  listening: boolean
+  onPointerDown: () => void
+  onDragEnd: (e: Konva.KonvaEventObject<Event>) => void
+  onTransformEnd: (e: Konva.KonvaEventObject<Event>) => void
+}
+
+/** Text centered on (x, y): its offset is set from the measured size after each render. */
+function TextNode({ layer, ...handlers }: { layer: TextLayer } & NodeHandlers) {
+  const ref = useRef<Konva.Text>(null)
+  useLayoutEffect(() => {
+    const n = ref.current
+    if (!n) return
+    n.offset({ x: n.width() / 2, y: n.height() / 2 })
+    n.getLayer()?.batchDraw()
+  })
+  return (
+    <Text
+      ref={ref}
+      {...handlers}
+      x={layer.x}
+      y={layer.y}
+      rotation={layer.rotation}
+      text={layer.text}
+      fontFamily={getFont(layer.fontId).family}
+      fontSize={layer.fontSize}
+      fill={layer.fill}
+      align="center"
+      lineHeight={1.1}
+      stroke={layer.outline ?? undefined}
+      strokeWidth={layer.outline ? layer.fontSize * 0.14 : 0}
+      fillAfterStrokeEnabled
+      lineJoin="round"
+    />
+  )
 }
 
 /** A group in the photo's local frame: origin at its center, rotated with it. */

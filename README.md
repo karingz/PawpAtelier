@@ -29,6 +29,16 @@ In dev, every browser log line, plus uncaught errors, also prints in the `npm ru
 
 Set the level with `VITE_LOG_LEVEL=info npm run dev` (debug | info | warn | error; default debug).
 
+### Live build (launch)
+
+```sh
+PAWP_LIVE=1 npm run build
+```
+
+Fails while `src/config/non-commercial.json` lists anything (dev-only models such as the current
+background-removal model). Normal builds just print a warning. See the go-live checklist in
+[docs/PLAN.md](docs/PLAN.md).
+
 ### Check on a phone
 
 ```sh
