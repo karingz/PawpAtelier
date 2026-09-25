@@ -1,0 +1,572 @@
+{
+  "source": "Microsoft Fluent Emoji (Color SVG)",
+  "url": "https://github.com/microsoft/fluentui-emoji",
+  "license": "MIT",
+  "commit": "1ffb34c752ecf5d402f04cfb4b392c77f57c54bc",
+  "stickers": [
+    {
+      "id": "fluent/dog-face",
+      "name": "Dog face",
+      "category": "pets",
+      "src": "/stickers/fluent/dog-face.svg"
+    },
+    {
+      "id": "fluent/dog",
+      "name": "Dog",
+      "category": "pets",
+      "src": "/stickers/fluent/dog.svg"
+    },
+    {
+      "id": "fluent/cat-face",
+      "name": "Cat face",
+      "category": "pets",
+      "src": "/stickers/fluent/cat-face.svg"
+    },
+    {
+      "id": "fluent/cat",
+      "name": "Cat",
+      "category": "pets",
+      "src": "/stickers/fluent/cat.svg"
+    },
+    {
+      "id": "fluent/black-cat",
+      "name": "Black cat",
+      "category": "pets",
+      "src": "/stickers/fluent/black-cat.svg"
+    },
+    {
+      "id": "fluent/grinning-cat",
+      "name": "Grinning cat",
+      "category": "pets",
+      "src": "/stickers/fluent/grinning-cat.svg"
+    },
+    {
+      "id": "fluent/smiling-cat-with-heart-eyes",
+      "name": "Smiling cat with heart-eyes",
+      "category": "pets",
+      "src": "/stickers/fluent/smiling-cat-with-heart-eyes.svg"
+    },
+    {
+      "id": "fluent/kissing-cat",
+      "name": "Kissing cat",
+      "category": "pets",
+      "src": "/stickers/fluent/kissing-cat.svg"
+    },
+    {
+      "id": "fluent/cat-with-tears-of-joy",
+      "name": "Cat with tears of joy",
+      "category": "pets",
+      "src": "/stickers/fluent/cat-with-tears-of-joy.svg"
+    },
+    {
+      "id": "fluent/paw-prints",
+      "name": "Paw prints",
+      "category": "pets",
+      "src": "/stickers/fluent/paw-prints.svg"
+    },
+    {
+      "id": "fluent/bone",
+      "name": "Bone",
+      "category": "pets",
+      "src": "/stickers/fluent/bone.svg"
+    },
+    {
+      "id": "fluent/meat-on-bone",
+      "name": "Meat on bone",
+      "category": "pets",
+      "src": "/stickers/fluent/meat-on-bone.svg"
+    },
+    {
+      "id": "fluent/fish",
+      "name": "Fish",
+      "category": "pets",
+      "src": "/stickers/fluent/fish.svg"
+    },
+    {
+      "id": "fluent/tropical-fish",
+      "name": "Tropical fish",
+      "category": "pets",
+      "src": "/stickers/fluent/tropical-fish.svg"
+    },
+    {
+      "id": "fluent/hamster",
+      "name": "Hamster",
+      "category": "pets",
+      "src": "/stickers/fluent/hamster.svg"
+    },
+    {
+      "id": "fluent/rabbit-face",
+      "name": "Rabbit face",
+      "category": "pets",
+      "src": "/stickers/fluent/rabbit-face.svg"
+    },
+    {
+      "id": "fluent/mouse-face",
+      "name": "Mouse face",
+      "category": "pets",
+      "src": "/stickers/fluent/mouse-face.svg"
+    },
+    {
+      "id": "fluent/bear",
+      "name": "Bear",
+      "category": "pets",
+      "src": "/stickers/fluent/bear.svg"
+    },
+    {
+      "id": "fluent/teddy-bear",
+      "name": "Teddy bear",
+      "category": "pets",
+      "src": "/stickers/fluent/teddy-bear.svg"
+    },
+    {
+      "id": "fluent/fox",
+      "name": "Fox",
+      "category": "pets",
+      "src": "/stickers/fluent/fox.svg"
+    },
+    {
+      "id": "fluent/bird",
+      "name": "Bird",
+      "category": "pets",
+      "src": "/stickers/fluent/bird.svg"
+    },
+    {
+      "id": "fluent/butterfly",
+      "name": "Butterfly",
+      "category": "pets",
+      "src": "/stickers/fluent/butterfly.svg"
+    },
+    {
+      "id": "fluent/honeybee",
+      "name": "Honeybee",
+      "category": "pets",
+      "src": "/stickers/fluent/honeybee.svg"
+    },
+    {
+      "id": "fluent/lady-beetle",
+      "name": "Lady beetle",
+      "category": "pets",
+      "src": "/stickers/fluent/lady-beetle.svg"
+    },
+    {
+      "id": "fluent/yarn",
+      "name": "Yarn",
+      "category": "pets",
+      "src": "/stickers/fluent/yarn.svg"
+    },
+    {
+      "id": "fluent/red-heart",
+      "name": "Red heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/red-heart.svg"
+    },
+    {
+      "id": "fluent/pink-heart",
+      "name": "Pink heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/pink-heart.svg"
+    },
+    {
+      "id": "fluent/orange-heart",
+      "name": "Orange heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/orange-heart.svg"
+    },
+    {
+      "id": "fluent/yellow-heart",
+      "name": "Yellow heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/yellow-heart.svg"
+    },
+    {
+      "id": "fluent/green-heart",
+      "name": "Green heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/green-heart.svg"
+    },
+    {
+      "id": "fluent/blue-heart",
+      "name": "Blue heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/blue-heart.svg"
+    },
+    {
+      "id": "fluent/light-blue-heart",
+      "name": "Light blue heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/light-blue-heart.svg"
+    },
+    {
+      "id": "fluent/purple-heart",
+      "name": "Purple heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/purple-heart.svg"
+    },
+    {
+      "id": "fluent/brown-heart",
+      "name": "Brown heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/brown-heart.svg"
+    },
+    {
+      "id": "fluent/white-heart",
+      "name": "White heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/white-heart.svg"
+    },
+    {
+      "id": "fluent/sparkling-heart",
+      "name": "Sparkling heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/sparkling-heart.svg"
+    },
+    {
+      "id": "fluent/two-hearts",
+      "name": "Two hearts",
+      "category": "hearts",
+      "src": "/stickers/fluent/two-hearts.svg"
+    },
+    {
+      "id": "fluent/revolving-hearts",
+      "name": "Revolving hearts",
+      "category": "hearts",
+      "src": "/stickers/fluent/revolving-hearts.svg"
+    },
+    {
+      "id": "fluent/growing-heart",
+      "name": "Growing heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/growing-heart.svg"
+    },
+    {
+      "id": "fluent/beating-heart",
+      "name": "Beating heart",
+      "category": "hearts",
+      "src": "/stickers/fluent/beating-heart.svg"
+    },
+    {
+      "id": "fluent/heart-with-ribbon",
+      "name": "Heart with ribbon",
+      "category": "hearts",
+      "src": "/stickers/fluent/heart-with-ribbon.svg"
+    },
+    {
+      "id": "fluent/heart-with-arrow",
+      "name": "Heart with arrow",
+      "category": "hearts",
+      "src": "/stickers/fluent/heart-with-arrow.svg"
+    },
+    {
+      "id": "fluent/heart-decoration",
+      "name": "Heart decoration",
+      "category": "hearts",
+      "src": "/stickers/fluent/heart-decoration.svg"
+    },
+    {
+      "id": "fluent/sparkles",
+      "name": "Sparkles",
+      "category": "sparkle",
+      "src": "/stickers/fluent/sparkles.svg"
+    },
+    {
+      "id": "fluent/star",
+      "name": "Star",
+      "category": "sparkle",
+      "src": "/stickers/fluent/star.svg"
+    },
+    {
+      "id": "fluent/glowing-star",
+      "name": "Glowing star",
+      "category": "sparkle",
+      "src": "/stickers/fluent/glowing-star.svg"
+    },
+    {
+      "id": "fluent/shooting-star",
+      "name": "Shooting star",
+      "category": "sparkle",
+      "src": "/stickers/fluent/shooting-star.svg"
+    },
+    {
+      "id": "fluent/crown",
+      "name": "Crown",
+      "category": "sparkle",
+      "src": "/stickers/fluent/crown.svg"
+    },
+    {
+      "id": "fluent/rainbow",
+      "name": "Rainbow",
+      "category": "sparkle",
+      "src": "/stickers/fluent/rainbow.svg"
+    },
+    {
+      "id": "fluent/cloud",
+      "name": "Cloud",
+      "category": "sparkle",
+      "src": "/stickers/fluent/cloud.svg"
+    },
+    {
+      "id": "fluent/sun",
+      "name": "Sun",
+      "category": "sparkle",
+      "src": "/stickers/fluent/sun.svg"
+    },
+    {
+      "id": "fluent/crescent-moon",
+      "name": "Crescent moon",
+      "category": "sparkle",
+      "src": "/stickers/fluent/crescent-moon.svg"
+    },
+    {
+      "id": "fluent/zzz",
+      "name": "Zzz",
+      "category": "sparkle",
+      "src": "/stickers/fluent/zzz.svg"
+    },
+    {
+      "id": "fluent/musical-notes",
+      "name": "Musical notes",
+      "category": "sparkle",
+      "src": "/stickers/fluent/musical-notes.svg"
+    },
+    {
+      "id": "fluent/speech-balloon",
+      "name": "Speech balloon",
+      "category": "sparkle",
+      "src": "/stickers/fluent/speech-balloon.svg"
+    },
+    {
+      "id": "fluent/thought-balloon",
+      "name": "Thought balloon",
+      "category": "sparkle",
+      "src": "/stickers/fluent/thought-balloon.svg"
+    },
+    {
+      "id": "fluent/camera",
+      "name": "Camera",
+      "category": "sparkle",
+      "src": "/stickers/fluent/camera.svg"
+    },
+    {
+      "id": "fluent/balloon",
+      "name": "Balloon",
+      "category": "party",
+      "src": "/stickers/fluent/balloon.svg"
+    },
+    {
+      "id": "fluent/party-popper",
+      "name": "Party popper",
+      "category": "party",
+      "src": "/stickers/fluent/party-popper.svg"
+    },
+    {
+      "id": "fluent/confetti-ball",
+      "name": "Confetti ball",
+      "category": "party",
+      "src": "/stickers/fluent/confetti-ball.svg"
+    },
+    {
+      "id": "fluent/wrapped-gift",
+      "name": "Wrapped gift",
+      "category": "party",
+      "src": "/stickers/fluent/wrapped-gift.svg"
+    },
+    {
+      "id": "fluent/ribbon",
+      "name": "Ribbon",
+      "category": "party",
+      "src": "/stickers/fluent/ribbon.svg"
+    },
+    {
+      "id": "fluent/birthday-cake",
+      "name": "Birthday cake",
+      "category": "party",
+      "src": "/stickers/fluent/birthday-cake.svg"
+    },
+    {
+      "id": "fluent/trophy",
+      "name": "Trophy",
+      "category": "party",
+      "src": "/stickers/fluent/trophy.svg"
+    },
+    {
+      "id": "fluent/1st-place-medal",
+      "name": "1st place medal",
+      "category": "party",
+      "src": "/stickers/fluent/1st-place-medal.svg"
+    },
+    {
+      "id": "fluent/rosette",
+      "name": "Rosette",
+      "category": "party",
+      "src": "/stickers/fluent/rosette.svg"
+    },
+    {
+      "id": "fluent/cookie",
+      "name": "Cookie",
+      "category": "food",
+      "src": "/stickers/fluent/cookie.svg"
+    },
+    {
+      "id": "fluent/cupcake",
+      "name": "Cupcake",
+      "category": "food",
+      "src": "/stickers/fluent/cupcake.svg"
+    },
+    {
+      "id": "fluent/shortcake",
+      "name": "Shortcake",
+      "category": "food",
+      "src": "/stickers/fluent/shortcake.svg"
+    },
+    {
+      "id": "fluent/ice-cream",
+      "name": "Ice cream",
+      "category": "food",
+      "src": "/stickers/fluent/ice-cream.svg"
+    },
+    {
+      "id": "fluent/soft-ice-cream",
+      "name": "Soft ice cream",
+      "category": "food",
+      "src": "/stickers/fluent/soft-ice-cream.svg"
+    },
+    {
+      "id": "fluent/candy",
+      "name": "Candy",
+      "category": "food",
+      "src": "/stickers/fluent/candy.svg"
+    },
+    {
+      "id": "fluent/lollipop",
+      "name": "Lollipop",
+      "category": "food",
+      "src": "/stickers/fluent/lollipop.svg"
+    },
+    {
+      "id": "fluent/strawberry",
+      "name": "Strawberry",
+      "category": "food",
+      "src": "/stickers/fluent/strawberry.svg"
+    },
+    {
+      "id": "fluent/avocado",
+      "name": "Avocado",
+      "category": "food",
+      "src": "/stickers/fluent/avocado.svg"
+    },
+    {
+      "id": "fluent/pizza",
+      "name": "Pizza",
+      "category": "food",
+      "src": "/stickers/fluent/pizza.svg"
+    },
+    {
+      "id": "fluent/bubble-tea",
+      "name": "Bubble tea",
+      "category": "food",
+      "src": "/stickers/fluent/bubble-tea.svg"
+    },
+    {
+      "id": "fluent/cherry-blossom",
+      "name": "Cherry blossom",
+      "category": "nature",
+      "src": "/stickers/fluent/cherry-blossom.svg"
+    },
+    {
+      "id": "fluent/blossom",
+      "name": "Blossom",
+      "category": "nature",
+      "src": "/stickers/fluent/blossom.svg"
+    },
+    {
+      "id": "fluent/tulip",
+      "name": "Tulip",
+      "category": "nature",
+      "src": "/stickers/fluent/tulip.svg"
+    },
+    {
+      "id": "fluent/rose",
+      "name": "Rose",
+      "category": "nature",
+      "src": "/stickers/fluent/rose.svg"
+    },
+    {
+      "id": "fluent/sunflower",
+      "name": "Sunflower",
+      "category": "nature",
+      "src": "/stickers/fluent/sunflower.svg"
+    },
+    {
+      "id": "fluent/white-flower",
+      "name": "White flower",
+      "category": "nature",
+      "src": "/stickers/fluent/white-flower.svg"
+    },
+    {
+      "id": "fluent/four-leaf-clover",
+      "name": "Four leaf clover",
+      "category": "nature",
+      "src": "/stickers/fluent/four-leaf-clover.svg"
+    },
+    {
+      "id": "fluent/smiling-face-with-heart-eyes",
+      "name": "Smiling face with heart-eyes",
+      "category": "faces",
+      "src": "/stickers/fluent/smiling-face-with-heart-eyes.svg"
+    },
+    {
+      "id": "fluent/smiling-face-with-hearts",
+      "name": "Smiling face with hearts",
+      "category": "faces",
+      "src": "/stickers/fluent/smiling-face-with-hearts.svg"
+    },
+    {
+      "id": "fluent/star-struck",
+      "name": "Star-struck",
+      "category": "faces",
+      "src": "/stickers/fluent/star-struck.svg"
+    },
+    {
+      "id": "fluent/face-blowing-a-kiss",
+      "name": "Face blowing a kiss",
+      "category": "faces",
+      "src": "/stickers/fluent/face-blowing-a-kiss.svg"
+    },
+    {
+      "id": "fluent/beaming-face-with-smiling-eyes",
+      "name": "Beaming face with smiling eyes",
+      "category": "faces",
+      "src": "/stickers/fluent/beaming-face-with-smiling-eyes.svg"
+    },
+    {
+      "id": "fluent/grinning-squinting-face",
+      "name": "Grinning squinting face",
+      "category": "faces",
+      "src": "/stickers/fluent/grinning-squinting-face.svg"
+    },
+    {
+      "id": "fluent/partying-face",
+      "name": "Partying face",
+      "category": "faces",
+      "src": "/stickers/fluent/partying-face.svg"
+    },
+    {
+      "id": "fluent/smiling-face-with-sunglasses",
+      "name": "Smiling face with sunglasses",
+      "category": "faces",
+      "src": "/stickers/fluent/smiling-face-with-sunglasses.svg"
+    },
+    {
+      "id": "fluent/face-with-tongue",
+      "name": "Face with tongue",
+      "category": "faces",
+      "src": "/stickers/fluent/face-with-tongue.svg"
+    },
+    {
+      "id": "fluent/winking-face-with-tongue",
+      "name": "Winking face with tongue",
+      "category": "faces",
+      "src": "/stickers/fluent/winking-face-with-tongue.svg"
+    }
+  ]
+}
