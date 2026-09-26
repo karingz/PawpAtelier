@@ -4,7 +4,7 @@ import { defineConfig, type Plugin } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), nonCommercialGuard()],
+  plugins: [react(), nonCommercialGuard(), dropBundledOrtWasm()],
   worker: { format: 'es' },
   // Pre-bundle at startup: discovering it when the cutout worker first loads makes Vite
   // reload the page mid-session (losing the design).
@@ -42,6 +42,27 @@ function nonCommercialGuard(): Plugin {
         this.error(`Live build blocked: non-commercial dependencies still in use:\n${list}`)
       }
       this.warn(`NON-COMMERCIAL dependencies in this build (dev only, not for the live shop):\n${list}`)
+    },
+  }
+}
+
+/**
+ * ONNX Runtime (used by transformers.js for background removal) contains a fallback reference to
+ * its ~27 MB .wasm, so Vite copies it into dist/. It is never fetched: transformers.js points
+ * ONNX Runtime at the matching file on the jsDelivr CDN at runtime. Dropping the copy keeps
+ * every deployed file under Cloudflare Pages' 25 MiB limit.
+ */
+function dropBundledOrtWasm(): Plugin {
+  return {
+    name: 'pawp-drop-bundled-ort-wasm',
+    apply: 'build',
+    generateBundle(_, bundle) {
+      for (const fileName of Object.keys(bundle)) {
+        if (/(^|\/)ort-wasm[^/]*\.wasm$/.test(fileName)) {
+          delete bundle[fileName]
+          this.info(`dropped ${fileName} (loaded from the CDN at runtime)`)
+        }
+      }
     },
   }
 }
