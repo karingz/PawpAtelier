@@ -1,3 +1,5 @@
+import { mulberry32 } from '../random/rng'
+
 // Background patterns drawn in code: sharp at any print size, seamless, recolorable and
 // free of third-party licensing. Each pattern is a square tile in design units.
 
@@ -53,17 +55,6 @@ function heart(ctx: CanvasRenderingContext2D, s: number) {
   ctx.bezierCurveTo(-s * 1.1, -s * 0.35, -s * 0.45, -s * 1.05, 0, -s * 0.45)
   ctx.bezierCurveTo(s * 0.45, -s * 1.05, s * 1.1, -s * 0.35, 0, s * 0.35)
   ctx.fill()
-}
-
-/** Small deterministic PRNG so confetti looks the same every time. */
-function mulberry32(seed: number) {
-  return () => {
-    seed |= 0
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
 }
 
 const DRAW: Record<string, Draw> = {

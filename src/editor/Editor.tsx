@@ -13,6 +13,7 @@ import { renderLook } from './look/renderLook'
 import { PrintCanvas } from './PrintCanvas'
 import type { Tab } from '../store/uiStore'
 import { TABS } from './tabs'
+import { SurprisePanel } from './SurprisePanel'
 import { loadImageSize } from './useHtmlImage'
 
 /** The content for one category, used by the flat editor's tabs and the 3D view's drawer. */
@@ -24,6 +25,7 @@ export function TabPanel({ tab, spec }: { tab: Tab; spec: ProductSpec }) {
       {tab === 'stickers' && <StickerPanel spec={spec} />}
       {tab === 'text' && <TextPanel spec={spec} />}
       {tab === 'background' && <BackgroundPanel />}
+      {tab === 'surprise' && <SurprisePanel spec={spec} />}
     </>
   )
 }

@@ -108,6 +108,8 @@ type DesignState = {
   /** Move a layer up (+1) or down (-1) the stack. */
   moveLayer: (id: string, step: 1 | -1) => void
   setBackground: (background: Background) => void
+  /** Replace the whole design (one undo step), e.g. a randomizer roll. */
+  replaceDesign: (design: Design) => void
   undo: () => void
   redo: () => void
   select: (id: string | null) => void
@@ -218,6 +220,10 @@ export const useDesignStore = create<DesignState>()((set, get) => {
         log.debug('design', `move ${id.slice(0, 8)} ${step > 0 ? 'up' : 'down'}`)
         return next
       }),
+    replaceDesign: (design) => {
+      commit(design)
+      set((s) => ({ selectedId: keepSelection(design, s.selectedId), cropDraft: null, lasso: null, layerDraft: null }))
+    },
     setBackground: (background) => {
       const { design } = get()
       if (JSON.stringify(background) === JSON.stringify(design.background)) return

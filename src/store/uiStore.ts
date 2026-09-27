@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 /** Editor content categories (the dock's buttons / the flat editor's tabs). */
-export type Tab = 'photo' | 'effects' | 'stickers' | 'text' | 'background'
+export type Tab = 'photo' | 'effects' | 'stickers' | 'text' | 'background' | 'surprise'
 
 type UiState = {
   /** Open drawer over the 3D scene, or null. */

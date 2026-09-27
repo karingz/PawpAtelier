@@ -79,7 +79,7 @@ The customization is always shown live on a 3D model. Pan/rotate/zoom is intuiti
 | 3 | Blender scene v1 | Studio diorama, baked lighting, GLB export (parallel with 1–2) | |
 | 4 | Integration | Shop view ↔ edit view camera flights, hover bounces, loading screen | **Done** on a placeholder table (mug + tumbler); swap in the room after Phase 3 |
 | 5 | Content & effects | Templates (stickers, backgrounds, themes, text, emojis), filters, background removal, cartoonize | **Done**: templates; 누끼 (one click + lasso/taps, dev model is non-commercial); filters & effects (brightness, contrast, saturation, warmth, blur, sharpen; B&W, vintage, pop, posterize, pixel, emboss, cartoon), stored as data on the photo so the print server can re-apply them. Later: an AI cartoon/illustration model (license check first). Assets: [RESOURCES.md](RESOURCES.md) |
-| 6 | Randomizer | Reckless slider, seeded rolls, history strip | |
+| 6 | Randomizer | Reckless slider, seeded rolls, history strip | **Done**: 🎲 Surprise drawer; deterministic seeds (#code), slider re-runs the same roll wilder/tamer, history thumbnails; pet photo always kept |
 | 7 | Checkout | Design storage + Shopify (or Korean PG) integration | |
 | 8 | Polish | Mobile optimization, sound, packing animation, more product models | |
 

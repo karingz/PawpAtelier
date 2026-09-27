@@ -7,4 +7,5 @@ export const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: 'stickers', label: 'Stickers', icon: '🐾' },
   { id: 'text', label: 'Text', icon: '🔤' },
   { id: 'background', label: 'Background', icon: '🎨' },
+  { id: 'surprise', label: 'Surprise', icon: '🎲' },
 ]
