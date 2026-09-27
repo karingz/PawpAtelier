@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { getFont } from '../content/fonts'
+import type { TextLayer } from '../store/designStore'
 import { layersWithDraft, useDesignStore } from '../store/designStore'
 import { useUiStore } from '../store/uiStore'
 import { CutoutButton } from './Editor'
@@ -20,7 +22,10 @@ export function SelectionOverlay() {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const cornerRefs = useRef<(HTMLDivElement | null)[]>([])
   const rotateRef = useRef<HTMLDivElement>(null)
+  const textBoxRef = useRef<HTMLDivElement>(null)
   const [layerId, setLayerId] = useState<string | null>(null)
+  const editingTextId = useUiStore((s) => s.editingTextId)
+  const typing = !!layerId && editingTextId === layerId
 
   useEffect(() => {
     const place = (el: HTMLElement | null, x: number, y: number, show: boolean) => {
@@ -36,6 +41,12 @@ export function SelectionOverlay() {
         poly.style.opacity = f?.facing ? '1' : '0.3'
       }
       if (!f) return
+
+      const box = textBoxRef.current
+      if (box) {
+        box.style.left = `${f.center.x}px`
+        box.style.top = `${f.center.y}px`
+      }
 
       f.corners.forEach(([x, y], i) => place(cornerRefs.current[i], x, y, f.facing))
       // Rotate knob: beyond the middle of the top edge, pointing away from the center.
@@ -70,7 +81,7 @@ export function SelectionOverlay() {
     }
     apply(selectionBus.get())
     return selectionBus.subscribe(apply)
-  }, [layerId])
+  }, [layerId, typing])
 
   /** Scale (corners) or rotate (knob) around the layer's projected center. */
   const startHandle = (mode: 'scale' | 'rotate') => (e: ReactPointerEvent) => {
@@ -117,7 +128,8 @@ export function SelectionOverlay() {
         <polygon ref={polygonRef} className="selection-overlay__outline" />
         {layerId && <line ref={stemRef} className="selection-overlay__stem" />}
       </svg>
-      {layerId && (
+      {typing && <TextEditBox ref={textBoxRef} layerId={layerId} />}
+      {layerId && !typing && (
         <>
           {[0, 1, 2, 3].map((i) => (
             <div
@@ -168,10 +180,17 @@ function FloatingActions({ layerId }: { layerId: string }) {
           )}
         </>
       )}
-      {layer.kind === 'text' && docked && (
-        <button className="btn btn--small" onClick={() => openDrawer('text')}>
-          Edit text
-        </button>
+      {layer.kind === 'text' && (
+        <>
+          <button className="btn btn--small" onClick={() => useUiStore.getState().startTextEdit(layerId)} title="Or double-tap the text">
+            ✏️ Edit
+          </button>
+          {docked && (
+            <button className="btn btn--small" onClick={() => openDrawer('text')}>
+              Style
+            </button>
+          )}
+        </>
       )}
       <button className="btn btn--small btn--icon" onClick={() => moveLayer(layerId, 1)} disabled={index === layers.length - 1} title="Bring forward" aria-label="Bring forward">
         ⬆
@@ -183,5 +202,59 @@ function FloatingActions({ layerId }: { layerId: string }) {
         ✕
       </button>
     </>
+  )
+}
+
+/**
+ * Typing right on the product: a text box over the layer, in its font. Updates the product live;
+ * Enter (or tapping away) saves as one undo step, Shift+Enter adds a line, Esc cancels.
+ */
+function TextEditBox({ layerId, ref }: { layerId: string; ref: React.Ref<HTMLDivElement> }) {
+  const layer = useDesignStore((s) => s.design.layers.find((l): l is TextLayer => l.id === layerId && l.kind === 'text'))
+  const [value, setValue] = useState(layer?.text ?? '')
+  const done = useRef(false)
+  if (!layer) return null
+
+  const finish = (save: boolean) => {
+    if (done.current) return
+    done.current = true
+    const st = useDesignStore.getState()
+    if (save && value !== layer.text) {
+      st.setLayerDraft(layerId, { text: value })
+      st.commitLayerDraft()
+    } else {
+      st.clearLayerDraft()
+    }
+    useUiStore.getState().endTextEdit()
+  }
+
+  const lines = Math.min(4, value.split('\n').length)
+  return (
+    <div ref={ref} className="text-edit" onPointerDown={(e) => e.stopPropagation()}>
+      <textarea
+        autoFocus
+        value={value}
+        rows={lines}
+        maxLength={80}
+        style={{ fontFamily: getFont(layer.fontId).family }}
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => {
+          setValue(e.target.value)
+          useDesignStore.getState().setLayerDraft(layerId, { text: e.target.value })
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            finish(true)
+          } else if (e.key === 'Escape') {
+            finish(false)
+          }
+          e.stopPropagation() // keep editor shortcuts (Delete, arrows, Ctrl+Z) out of the text box
+        }}
+        onBlur={() => finish(true)}
+        aria-label="Text"
+      />
+      <span className="text-edit__hint">Enter to save · Esc to cancel</span>
+    </div>
   )
 }

@@ -8,18 +8,25 @@ type UiState = {
   drawer: Tab | null
   /** The full 2D editor instead of editing on the 3D product. */
   flat: boolean
+  /** Text layer being typed into right on the product. */
+  editingTextId: string | null
   openDrawer: (tab: Tab) => void
   toggleDrawer: (tab: Tab) => void
   closeDrawer: () => void
   setFlat: (flat: boolean) => void
+  startTextEdit: (layerId: string) => void
+  endTextEdit: () => void
 }
 
 /** Screen/UI state that isn't part of the design (not in undo history). */
 export const useUiStore = create<UiState>()((set) => ({
   drawer: null,
   flat: false,
+  editingTextId: null,
   openDrawer: (drawer) => set({ drawer }),
   toggleDrawer: (tab) => set((s) => ({ drawer: s.drawer === tab ? null : tab })),
   closeDrawer: () => set({ drawer: null }),
   setFlat: (flat) => set({ flat }),
+  startTextEdit: (editingTextId) => set({ editingTextId }),
+  endTextEdit: () => set({ editingTextId: null }),
 }))

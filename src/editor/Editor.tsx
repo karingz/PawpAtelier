@@ -164,7 +164,7 @@ export function CutoutButton({ photo }: { photo: PhotoLayer }) {
 }
 
 /** Lasso mode: include/exclude taps, clear, apply. */
-function LassoBar() {
+export function LassoBar() {
   const lasso = useDesignStore((s) => s.lasso)!
   const photo = useDesignStore((s) => s.design.layers.find((l) => l.id === s.lasso?.layerId))
   const { updateLasso, endLasso } = useDesignStore.getState()
@@ -219,7 +219,7 @@ function LassoBar() {
   )
 }
 
-function CropBar() {
+export function CropBar() {
   const { applyCrop, cancelCrop } = useDesignStore.getState()
   return (
     <div className="toolbar">

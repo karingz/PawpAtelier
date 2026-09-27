@@ -84,9 +84,12 @@ directly on the 3D product, like a game character customizer.
 3. ✅ **Drawer UI** (built 2026-09-27): edit view is the full 3D scene with a category bar
    (phone: bottom; desktop: left rail) and a drawer reusing the panels; the camera frames the
    product beside/above it; floating undo/redo; header **3D / Flat** switch (Flat = the old 2D
-   editor). Crop and Lasso switch to Flat while active (their own full-screen tools: Phase 4).
+   editor).
    The print moved into an always-mounted `PrintStage`, so the product updates from any view.
-4. **Modal tools:** full-screen Crop and Lasso for the selected photo; inline text editing on the mug.
+4. ✅ **Modal tools** (built 2026-09-27): from the 3D view, Crop and Lasso open a full-screen tool
+   for that photo (fitted, unrotated; the product keeps previewing underneath). Inline text:
+   double-tap text on the product (or toolbar **Edit**) to type in place (Enter saves as one undo
+   step, Shift+Enter new line, Esc cancels); **Style** opens the font/color drawer.
 5. **Wrap strip + cleanup:** mini-map of the whole print; remove the old panel/splitter; tune
    desktop layout.
 6. **More products:** flat decal surfaces (tote/tee) once those models exist (after Phase 3 room work).

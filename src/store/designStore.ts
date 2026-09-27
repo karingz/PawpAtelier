@@ -124,6 +124,8 @@ type DesignState = {
 
   setLayerDraft: (layerId: string, patch: LayerPatch) => void
   commitLayerDraft: () => void
+  /** Drop an in-progress change without saving it. */
+  clearLayerDraft: () => void
   setLookDraft: (layerId: string, look: Partial<PhotoLook>) => void
   /** Save the draft (if any) as the layer's look. */
   commitLookDraft: () => void
@@ -287,6 +289,7 @@ export const useDesignStore = create<DesignState>()((set, get) => {
       set({ layerDraft: null })
       get().updateLayer(layerDraft.layerId, layerDraft.patch)
     },
+    clearLayerDraft: () => set({ layerDraft: null }),
     setLookDraft: (layerId, look) => set({ lookDraft: { layerId, look } }),
     commitLookDraft: () => {
       const { lookDraft } = get()

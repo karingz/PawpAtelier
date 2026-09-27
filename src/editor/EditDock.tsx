@@ -82,10 +82,10 @@ export function ModeSwitch() {
   const setFlat = useUiStore((s) => s.setFlat)
   return (
     <div className="mode-switch" role="group" aria-label="Editing view">
-      <button className={!flat && !tool ? 'mode-switch--on' : ''} onClick={() => setFlat(false)} disabled={tool}>
+      <button className={!flat ? 'mode-switch--on' : ''} onClick={() => setFlat(false)} disabled={tool}>
         3D
       </button>
-      <button className={flat || tool ? 'mode-switch--on' : ''} onClick={() => setFlat(true)} disabled={tool}>
+      <button className={flat ? 'mode-switch--on' : ''} onClick={() => setFlat(true)} disabled={tool}>
         Flat
       </button>
     </div>

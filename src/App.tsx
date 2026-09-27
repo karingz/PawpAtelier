@@ -3,6 +3,7 @@ import { PRODUCTS, getProduct } from './config/products'
 import { EditDock, ModeSwitch } from './editor/EditDock'
 import { Editor } from './editor/Editor'
 import { PrintStage } from './editor/PrintCanvas'
+import { PhotoToolModal } from './editor/PhotoToolModal'
 import { useUiStore } from './store/uiStore'
 import { PanelSplitter } from './editor/PanelSplitter'
 import { SelectionOverlay } from './editor/SelectionOverlay'
@@ -21,11 +22,11 @@ export default function App() {
   const shopInset = useCoveredFraction(viewerRef, shopRef, view === 'shop')
   const mainRef = useRef<HTMLElement>(null)
   const panel = usePanelSizes()
-  // Editing on the 3D product (dock + drawer), or the flat 2D editor. Crop and lasso still
-  // live in the flat editor, so they switch to it while active.
+  // Editing on the 3D product (dock + drawer), or the flat 2D editor. From the 3D view, crop
+  // and lasso open a full-screen tool for the photo; in the flat editor they work in place.
   const flatChosen = useUiStore((s) => s.flat)
   const tool = useDesignStore((s) => s.cropDraft !== null || s.lasso !== null)
-  const flat = view === 'edit' && (flatChosen || tool)
+  const flat = view === 'edit' && flatChosen
   const docked = view === 'edit' && !flat
   const dockRef = useRef<HTMLDivElement>(null)
   const dockInset = useDockInsets(viewerRef, dockRef, docked)
@@ -58,6 +59,7 @@ export default function App() {
         </section>
         {/* The print feeding the 3D product: mounted for any kind of editing. */}
         {view === 'edit' && <PrintStage key={spec.id} spec={spec} />}
+        {docked && tool && <PhotoToolModal />}
 
         {view === 'shop' && <ShopSheet ref={shopRef} />}
         {flat && (

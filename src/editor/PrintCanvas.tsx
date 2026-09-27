@@ -687,7 +687,7 @@ function PhotoFrame({ photo, children, listening }: { photo: PhotoLayer; childre
   )
 }
 
-function FullImage({ photo, image, opacity }: { photo: PhotoLayer; image: HTMLImageElement; opacity?: number }) {
+export function FullImage({ photo, image, opacity }: { photo: PhotoLayer; image: HTMLImageElement; opacity?: number }) {
   const full = fullImageBox(photo)
   return <KImage image={image} {...full} opacity={opacity} listening={false} />
 }
@@ -696,7 +696,7 @@ function FullImage({ photo, image, opacity }: { photo: PhotoLayer; image: HTMLIm
  * Crop mode overlay: the whole source image dimmed, the kept region bright, and a
  * free-aspect box with handles. The box is clamped to the image when a gesture ends.
  */
-function CropEditor({ photo, image, draft }: { photo: PhotoLayer; image: HTMLImageElement; draft: Box }) {
+export function CropEditor({ photo, image, draft }: { photo: PhotoLayer; image: HTMLImageElement; draft: Box }) {
   const rectRef = useRef<Konva.Rect>(null)
   const trRef = useRef<Konva.Transformer>(null)
   const setCropDraft = useDesignStore((s) => s.setCropDraft)
@@ -773,7 +773,7 @@ function sourceToLocal(photo: PhotoLayer, [u, v]: [number, number]): [number, nu
  * Lasso mode: draw a rough loop around the pet, or tap to include / exclude. Shows the
  * worker's live preview (pink = kept) over the original photo.
  */
-function LassoOverlay({ photo, lasso, scale }: { photo: PhotoLayer; lasso: LassoState; scale: number }) {
+export function LassoOverlay({ photo, lasso, scale }: { photo: PhotoLayer; lasso: LassoState; scale: number }) {
   const groupRef = useRef<Konva.Group>(null)
   const preview = useLassoPreview((s) => s.canvas)
   const updateLasso = useDesignStore((s) => s.updateLasso)

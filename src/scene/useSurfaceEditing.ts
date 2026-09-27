@@ -4,12 +4,26 @@ import * as THREE from 'three'
 import type { CylinderSpec } from '../config/products'
 import { boxContains, boxOutline, layerAt, layerBox, normalizeDegrees, transformPatch } from '../editor/layerGeometry'
 import { selectionBus } from '../editor/selectionBus'
-import { layersWithDraft, useDesignStore } from '../store/designStore'
+import { layersWithDraft, useDesignStore, type Layer } from '../store/designStore'
+import { useUiStore } from '../store/uiStore'
 import { gesture } from './gestures'
 import { designToBandLocal, uvToDesign } from './surface'
 
 /** Pointer travel (px) below which a press counts as a tap. */
 const TAP_SLOP = 6
+const DOUBLE_TAP_MS = 400
+
+let lastTap = { id: '', at: 0 }
+/** A tap on a layer; the second quick tap on the same text starts typing into it. */
+function noteTap(layer: Layer | undefined) {
+  const now = performance.now()
+  if (layer?.kind === 'text' && lastTap.id === layer.id && now - lastTap.at < DOUBLE_TAP_MS) {
+    useUiStore.getState().startTextEdit(layer.id)
+    lastTap = { id: '', at: 0 }
+    return
+  }
+  lastTap = { id: layer?.id ?? '', at: now }
+}
 
 /**
  * Editing directly on the product's print band (the usual 3D-configurator rules):
@@ -61,7 +75,10 @@ export function useSurfaceEditing(spec: CylinderSpec, active: boolean) {
       const tapped = layerAt(spec.id, st.design.layers, p.x, p.y)
       const up = (ev: PointerEvent) => {
         window.removeEventListener('pointerup', up)
-        if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < TAP_SLOP) st.select(tapped?.id ?? null)
+        if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < TAP_SLOP) {
+          st.select(tapped?.id ?? null)
+          noteTap(tapped)
+        }
       }
       window.addEventListener('pointerup', up)
       return
@@ -112,6 +129,7 @@ export function useSurfaceEditing(spec: CylinderSpec, active: boolean) {
       window.removeEventListener('pointercancel', up)
       gesture.layerDrag = false
       if (moved) useDesignStore.getState().commitLayerDraft()
+      else noteTap(hit)
     }
     window.addEventListener('pointerdown', down, true)
     window.addEventListener('pointermove', move)
