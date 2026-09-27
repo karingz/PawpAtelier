@@ -10,10 +10,13 @@ type UiState = {
   flat: boolean
   /** Text layer being typed into right on the product. */
   editingTextId: string | null
+  /** "Turn the product to show this design x" (from the wrap strip); `n` makes repeats count. */
+  turnRequest: { x: number; n: number } | null
   openDrawer: (tab: Tab) => void
   toggleDrawer: (tab: Tab) => void
   closeDrawer: () => void
   setFlat: (flat: boolean) => void
+  requestTurn: (x: number) => void
   startTextEdit: (layerId: string) => void
   endTextEdit: () => void
 }
@@ -23,10 +26,12 @@ export const useUiStore = create<UiState>()((set) => ({
   drawer: null,
   flat: false,
   editingTextId: null,
+  turnRequest: null,
   openDrawer: (drawer) => set({ drawer }),
   toggleDrawer: (tab) => set((s) => ({ drawer: s.drawer === tab ? null : tab })),
   closeDrawer: () => set({ drawer: null }),
   setFlat: (flat) => set({ flat }),
+  requestTurn: (x) => set((s) => ({ turnRequest: { x, n: (s.turnRequest?.n ?? 0) + 1 } })),
   startTextEdit: (editingTextId) => set({ editingTextId }),
   endTextEdit: () => set({ editingTextId: null }),
 }))

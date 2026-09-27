@@ -90,8 +90,10 @@ directly on the 3D product, like a game character customizer.
    for that photo (fitted, unrotated; the product keeps previewing underneath). Inline text:
    double-tap text on the product (or toolbar **Edit**) to type in place (Enter saves as one undo
    step, Shift+Enter new line, Esc cancels); **Style** opens the font/color drawer.
-5. **Wrap strip + cleanup:** mini-map of the whole print; remove the old panel/splitter; tune
-   desktop layout.
+5. ✅ **Wrap strip** (built 2026-09-27): the whole print as a mini-map (above the bar on phones,
+   bottom-center on desktop); a frame shows what faces the camera (split across the handle gap),
+   the selection is outlined, tap to turn there. The old panel stays as the optional Flat mode
+   (decision 1), so its splitter stays too.
 6. **More products:** flat decal surfaces (tote/tee) once those models exist (after Phase 3 room work).
 
 ## Risks

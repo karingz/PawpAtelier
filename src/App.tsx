@@ -133,9 +133,12 @@ function useDockInsets(viewer: RefObject<HTMLElement | null>, dock: RefObject<HT
       const vr = v.getBoundingClientRect()
       const dr = d.getBoundingClientRect()
       const side = dr.height > vr.height * 0.8 // a full-height rail = desktop layout
+      // On desktop the wrap strip floats at the bottom of the scene: keep the product above it.
+      const strip = d.querySelector('.wrap-strip')?.getBoundingClientRect()
+      const stripBottom = strip && vr.height > 0 ? Math.max(0, vr.bottom - strip.top + 8) / vr.height : 0
       setInsets(
         side
-          ? { bottom: 0, left: vr.width > 0 ? Math.max(0, dr.right - vr.left) / vr.width : 0 }
+          ? { bottom: stripBottom, left: vr.width > 0 ? Math.max(0, dr.right - vr.left) / vr.width : 0 }
           : { bottom: vr.height > 0 ? Math.max(0, vr.bottom - dr.top) / vr.height : 0, left: 0 },
       )
     }
@@ -143,7 +146,13 @@ function useDockInsets(viewer: RefObject<HTMLElement | null>, dock: RefObject<HT
     const observer = new ResizeObserver(measure)
     observer.observe(v)
     observer.observe(d)
-    return () => observer.disconnect()
+    // The strip comes and goes with the drawer; re-measure when the dock's contents change.
+    const mutations = new MutationObserver(measure)
+    mutations.observe(d, { childList: true })
+    return () => {
+      observer.disconnect()
+      mutations.disconnect()
+    }
   }, [viewer, dock, active])
   return active ? insets : NO_INSETS
 }

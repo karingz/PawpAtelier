@@ -10,16 +10,23 @@ npm run dev      # dev server → http://localhost:5173 (Ctrl+C to stop)
 npm run build    # type-check + production build
 ```
 
-Open http://localhost:5173, tap a product (or its card) to fly in, upload a pet photo,
-drag/resize/rotate/crop it on the flat canvas and watch the product update live. Drag the
-product to spin it; let go to see it spring back. "← Shop" flies back out.
+Open http://localhost:5173, tap a product (or its card) to fly in, add a pet photo from the
+Photo drawer (or borrow Leah), and edit it right on the product. "← Shop" flies back out.
 
-Editing view controls:
-- **3D view:** drag to turn; scroll or pinch to zoom (springs back past the limits).
-- **2D canvas:** scroll or pinch to zoom (up to 800%); drag empty space, **Space + drag**,
-  middle-mouse drag or two fingers to pan; **− / Fit / +** buttons in the corner.
-- **Panel size:** drag the handle between the 3D view and the editor (edge on desktop, grab bar
-  on phones); double-click resets. Remembered per browser.
+Editing view controls (**3D** mode, the default):
+- **On the product:** tap a layer to select it; drag the selected layer to move it along the
+  surface; drag anything else to turn the product; scroll or pinch to zoom.
+- **Handles:** corner dots resize, the ↻ knob rotates (snaps to 90°; Shift for free). Two fingers
+  on a held layer pinch/twist it. Keyboard: arrows (Shift = bigger), `[` `]` rotate, `-` `=` resize.
+- **Floating toolbar** under the selection: Remove BG, Lasso, Crop (full-screen tools), Effects,
+  Edit/Style for text, forward/back, delete. Double-tap text to type on the product.
+- **Category bar / rail:** Photo, Effects, Stickers, Text, Background open a drawer.
+- **Wrap strip:** the whole print; the frame shows what faces you; tap a spot to turn there.
+
+**Flat** mode (header switch): the full 2D editor. Scroll/pinch to zoom (up to 800%); drag empty
+space, **Space + drag**, middle-mouse drag or two fingers to pan; **− / Fit / +** in the corner;
+drag the handle between the 3D view and the editor to resize (double-click resets).
+
 Code edits hot-reload instantly.
 
 To stop: press `Ctrl+C` in the terminal running it. If that terminal is gone but the port is

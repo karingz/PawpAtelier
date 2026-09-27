@@ -4,10 +4,12 @@ import * as THREE from 'three'
 import type { CylinderSpec } from '../config/products'
 import { boxContains, boxOutline, layerAt, layerBox, normalizeDegrees, transformPatch } from '../editor/layerGeometry'
 import { selectionBus } from '../editor/selectionBus'
+import { viewBus } from '../editor/viewBus'
+import { designSize } from '../config/products'
 import { layersWithDraft, useDesignStore, type Layer } from '../store/designStore'
 import { useUiStore } from '../store/uiStore'
 import { gesture } from './gestures'
-import { designToBandLocal, uvToDesign } from './surface'
+import { cylinderBand, designToBandLocal, uvToDesign } from './surface'
 
 /** Pointer travel (px) below which a press counts as a tap. */
 const TAP_SLOP = 6
@@ -137,9 +139,23 @@ export function useSurfaceEditing(spec: CylinderSpec, active: boolean) {
     window.addEventListener('pointercancel', up)
   }
 
-  // Follow the selected layer on screen.
+  // Every frame: which part of the wrap faces the camera (for the wrap strip), and where the
+  // selected layer is on screen (for the outline, handles and toolbar).
+  const camLocal = useRef(new THREE.Vector3())
   useFrame(() => {
     const mesh = band.current
+    if (active && mesh) {
+      // The camera's direction in the band's own frame gives the front angle directly
+      // (independent of spin, idle bob or tilt).
+      mesh.worldToLocal(camLocal.current.copy(camera.position))
+      const b = cylinderBand(spec)
+      const W = designSize(spec).width
+      const phi = Math.atan2(camLocal.current.x, camLocal.current.z)
+      const along = (((phi - b.start) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
+      // Past the end of the band (the gap): report it as just beyond the nearer edge.
+      const frontX = along <= b.arc ? (along / b.arc) * W : along - b.arc < (Math.PI * 2 - b.arc) / 2 ? W + ((along - b.arc) / b.arc) * W : ((along - Math.PI * 2) / b.arc) * W
+      viewBus.set({ productId: spec.id, frontX, halfX: ((70 * Math.PI) / 180 / b.arc) * W })
+    }
     const st = useDesignStore.getState()
     const layers = layersWithDraft(st.design.layers, st.layerDraft)
     const sel = active && mesh && !st.cropDraft && !st.lasso ? layers.find((l) => l.id === st.selectedId) : undefined

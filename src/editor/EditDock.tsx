@@ -4,6 +4,7 @@ import { selectedLayer, useDesignStore } from '../store/designStore'
 import { useUiStore } from '../store/uiStore'
 import { TabPanel } from './Editor'
 import { TABS } from './tabs'
+import { WrapStrip } from './WrapStrip'
 
 /**
  * Editing on the 3D product: a category bar (bottom on phones, a rail on the left on desktop)
@@ -39,6 +40,7 @@ export function EditDock({ spec, dockRef }: { spec: ProductSpec; dockRef: RefObj
             </div>
           </section>
         )}
+        {!drawer && <WrapStrip spec={spec} />}
         <nav className="category-bar" aria-label="Edit">
           {TABS.map((t) => (
             <button

@@ -1204,3 +1204,66 @@ button {
     opacity: 0;
   }
 }
+
+/* Wrap strip: the whole print as a mini-map */
+.wrap-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0 auto 8px;
+  padding: 6px 8px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.9);
+  box-shadow: 0 2px 12px rgb(59 47 47 / 0.14);
+  max-width: calc(100% - 16px);
+}
+
+.wrap-strip__track {
+  position: relative;
+  max-width: calc(100vw - 80px);
+  overflow: hidden;
+  border-radius: 6px;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.wrap-strip__track canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wrap-strip__window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  background: rgb(217 96 127 / 0.08);
+  pointer-events: none;
+}
+
+.wrap-strip__selection {
+  position: absolute;
+  border: 1.5px dashed #3b2f2f;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.wrap-strip__end {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* Desktop: float at the bottom center of the scene, not in the left rail */
+@media (min-width: 900px) {
+  .dock .wrap-strip {
+    position: fixed;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(calc(-50% + 40px));
+    margin: 0;
+  }
+}

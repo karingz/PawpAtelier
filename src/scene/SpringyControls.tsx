@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import type { Group } from 'three'
 import { log } from '../debug/log'
@@ -24,6 +24,15 @@ type Props = {
    * `key` triggers it; ignored if already close; any drag cancels it.
    */
   face?: { spin: number; key: string } | null
+  /** Imperative handle, e.g. to turn to a spot picked on the wrap strip. */
+  apiRef?: RefObject<SpringyApi | null>
+}
+
+export type SpringyApi = {
+  /** Current spin (radians from rest). */
+  spin: () => number
+  /** Spring to a spin (radians from rest), taking the short way round within the limits. */
+  turnTo: (spin: number) => void
 }
 
 /**
@@ -40,6 +49,7 @@ export function SpringyControls({
   stiffness = 140,
   damping = 11,
   face = null,
+  apiRef,
 }: Props) {
   const group = useRef<Group>(null)
   const dom = useThree((s) => s.gl.domElement)
@@ -55,6 +65,19 @@ export function SpringyControls({
     spin: { x: 0, v: 0 },
     tilt: { x: 0, v: 0 },
     faceTarget: null as number | null,
+  })
+
+  const turnTo = (target: number) => {
+    const s = state.current
+    const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a))
+    s.faceTarget = clamp(s.spin.x + wrap(target - s.spin.x), azimuth)
+  }
+  useEffect(() => {
+    if (!apiRef) return
+    apiRef.current = { spin: () => state.current.spin.x, turnTo }
+    return () => {
+      apiRef.current = null
+    }
   })
 
   // Auto-face: pick the nearest equivalent angle within the spin limits.
