@@ -1,4 +1,4 @@
-import { useState, type RefObject } from 'react'
+import { useEffect, useState, type RefObject } from 'react'
 import type { ProductSpec } from '../config/products'
 import { selectedLayer, useDesignStore } from '../store/designStore'
 import { useUiStore } from '../store/uiStore'
@@ -21,6 +21,27 @@ export function EditDock({ spec, dockRef }: { spec: ProductSpec; dockRef: RefObj
     setSeen(selected?.id)
     if (drawer && selected?.kind === 'text' && drawer !== 'text') openDrawer('text')
   }
+
+  // A tap on the 3D scene closes the drawer (drags that turn the product or move a layer don't;
+  // nor do taps on the toolbar, handles or the drawer itself, which aren't the scene's canvas).
+  useEffect(() => {
+    const viewer = dockRef.current?.parentElement
+    if (!viewer || !drawer) return
+    let start: { x: number; y: number } | null = null
+    const down = (e: PointerEvent) => {
+      start = e.target instanceof HTMLCanvasElement && e.target.closest('.scene') ? { x: e.clientX, y: e.clientY } : null
+    }
+    const up = (e: PointerEvent) => {
+      if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) < 6) closeDrawer()
+      start = null
+    }
+    viewer.addEventListener('pointerdown', down)
+    window.addEventListener('pointerup', up)
+    return () => {
+      viewer.removeEventListener('pointerdown', down)
+      window.removeEventListener('pointerup', up)
+    }
+  }, [dockRef, drawer, closeDrawer])
 
   const current = TABS.find((t) => t.id === drawer)
   return (
