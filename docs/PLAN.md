@@ -76,7 +76,7 @@ The customization is always shown live on a 3D model. Pan/rotate/zoom is intuiti
 | 0 | Decide | Target market (US/Korea), fulfillment method, 3–4 launch products, name | Name done |
 | 1 | Viewer prototype | Vite + R3F app, placeholder mug, springy clamped controls, photo upload textured live | **Done** |
 | 2 | Editor core | Konva canvas → 3D texture; move/scale/rotate/crop; undo/redo | **Done** (move/scale/rotate, crop, undo/redo) |
-| 3 | Blender scene v1 | Studio diorama, baked lighting, GLB export (parallel with 1–2) | |
+| 3 | Blender scene v1 | Studio diorama, baked lighting, GLB export (parallel with 1–2) | **Planned**: two concepts (Atelier, Concept Store) as grayboxes first → [ROOM-PLAN.md](ROOM-PLAN.md) |
 | 4 | Integration | Shop view ↔ edit view camera flights, hover bounces, loading screen | **Done** on a placeholder table (mug + tumbler); swap in the room after Phase 3 |
 | 5 | Content & effects | Templates (stickers, backgrounds, themes, text, emojis), filters, background removal, cartoonize | **Done**: templates; 누끼 (one click + lasso/taps, dev model is non-commercial); filters & effects (brightness, contrast, saturation, warmth, blur, sharpen; B&W, vintage, pop, posterize, pixel, emboss, cartoon), stored as data on the photo so the print server can re-apply them. Later: an AI cartoon/illustration model (license check first). Assets: [RESOURCES.md](RESOURCES.md) |
 | 6 | Randomizer | Reckless slider, seeded rolls, history strip | **Done**: 🎲 Surprise drawer; deterministic seeds (#code), slider re-runs the same roll wilder/tamer, history thumbnails; pet photo always kept |
@@ -110,11 +110,11 @@ drawer, replacing the right-hand 2D panel. See [UI-REDESIGN.md](UI-REDESIGN.md).
 - Print area specs must match the real products / POD provider templates
 
 ## 9. Open Decisions
-- [ ] Target market: US or Korea (decides commerce stack)
+- [x] Target market: **US** (2026-09-27) → Shopify via Storefront API. Waiting on the Shopify account (owner's wife creates it); checkout (Phase 7) and polish (Phase 8) come after the room (Phase 3).
 - [ ] Fulfillment: in-house vs print-on-demand
-- [ ] Launch product list
+- [x] Launch products (2026-09-27): **mug, tumbler, t-shirt, phone case**. Later candidates: grip-tok (phone grip), hat, keycaps, and other everyday items with a printable surface. The room (Phase 3) must have space to add categories.
 - [x] Brand name: **Pawp Atelier** (still to check: domain .com/.shop/.studio, Instagram handle, trademark USPTO / KIPRIS)
-- [ ] Room scene art direction (wife's call — the room is the brand)
+- [ ] Room scene art direction (wife's call — the room is the brand). Style decided: **cartoon / stylized, low-poly, baked** (light on phones). Two concepts to graybox: Atelier, Concept Store ([ROOM-PLAN.md](ROOM-PLAN.md)).
 
 ## 10. Name Shortlist (archived)
 Paw Room, Boop Studio, Little Den, Pawp, Fluffprint, Pet Atelier; hybrids Boop Den, Pawp Atelier, Fluff Den, The Boop Room.
