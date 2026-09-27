@@ -54,7 +54,8 @@ export function SpringyControls({
     if (!enabled) return
     const s = state.current
     const onDown = (e: PointerEvent) => {
-      if (s.dragging) return
+      // A layer grabbed on the surface takes this pointer (R3F handles it before us).
+      if (s.dragging || gesture.layerDrag) return
       s.dragging = true
       s.pointerId = e.pointerId
       s.startX = e.clientX
@@ -66,6 +67,12 @@ export function SpringyControls({
     }
     const onMove = (e: PointerEvent) => {
       if (!s.dragging || e.pointerId !== s.pointerId) return
+      if (gesture.layerDrag) {
+        // This press grabbed a layer on the surface (R3F saw it after our pointerdown).
+        s.dragging = false
+        s.pointerId = -1
+        return
+      }
       if (gesture.pinching) {
         // Two fingers are zooming: don't also spin, and don't jump when the pinch ends.
         s.startX = e.clientX

@@ -8,13 +8,16 @@ import { log } from '../debug/log'
 import { selectedLayer, useDesignStore, type PhotoLayer, type TextLayer } from '../store/designStore'
 import { applyLasso, removeBackground, resetLassoPreview, restoreBackground, useCutoutJobs, useLassoPreview } from './cutout/removeBackground'
 import { dateOptions, formatTakenAt, placeOptions, printQuality, readPhotoMeta, type PhotoMeta } from './photoMeta'
+import { ADJUSTMENTS, EFFECTS, isDefaultLook, withDefaults, type PhotoLook } from './look/look'
+import { renderLook } from './look/renderLook'
 import { PrintCanvas } from './PrintCanvas'
 import { loadImageSize } from './useHtmlImage'
 
-type Tab = 'photo' | 'stickers' | 'text' | 'background'
+type Tab = 'photo' | 'effects' | 'stickers' | 'text' | 'background'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'photo', label: 'Photo' },
+  { id: 'effects', label: 'Effects' },
   { id: 'stickers', label: 'Stickers' },
   { id: 'text', label: 'Text' },
   { id: 'background', label: 'Background' },
@@ -64,6 +67,7 @@ export function Editor({ spec }: { spec: ProductSpec }) {
           </nav>
           <div className="panel">
             {tab === 'photo' && <PhotoPanel spec={spec} />}
+            {tab === 'effects' && <EffectsPanel />}
             {tab === 'stickers' && <StickerPanel spec={spec} />}
             {tab === 'text' && <TextPanel spec={spec} />}
             {tab === 'background' && <BackgroundPanel />}
@@ -134,7 +138,7 @@ function LayerBar({ spec }: { spec: ProductSpec }) {
 }
 
 /** One-click background removal (누끼), or restore the original photo. */
-function CutoutButton({ photo }: { photo: PhotoLayer }) {
+export function CutoutButton({ photo }: { photo: PhotoLayer }) {
   const job = useCutoutJobs((s) => s.jobs[photo.id])
   if (job) {
     const label = job.phase === 'download' ? `Getting AI ready ${Math.round(job.percent)}%` : 'Removing background…'
@@ -391,6 +395,117 @@ function OptionChips({ options, onPick }: { options: string[]; onPick: (text: st
       ))}
     </div>
   )
+}
+
+/** Filters and effects for the selected photo. */
+function EffectsPanel() {
+  const selected = useDesignStore(selectedLayer)
+  // Select the (stable) layer list and filter here: a selector returning a new array each time
+  // makes zustand re-render forever.
+  const layers = useDesignStore((s) => s.design.layers)
+  const photos = layers.filter((l): l is PhotoLayer => l.kind === 'photo')
+  const select = useDesignStore((s) => s.select)
+  const photo = selected?.kind === 'photo' ? selected : null
+
+  if (!photo) {
+    return (
+      <div className="panel__body">
+        <p className="app__note">
+          {photos.length ? 'Tap a photo on the canvas to give it a look.' : 'Add a photo first, then give it a look here.'}
+        </p>
+        {photos.length === 1 && (
+          <button className="btn btn--small" onClick={() => select(photos[0].id)}>
+            Select my photo
+          </button>
+        )}
+      </div>
+    )
+  }
+  return <LookEditor key={photo.id} photo={photo} />
+}
+
+function LookEditor({ photo }: { photo: PhotoLayer }) {
+  const draft = useDesignStore((s) => (s.lookDraft?.layerId === photo.id ? s.lookDraft.look : null))
+  const { setLookDraft, commitLookDraft, updateLayer } = useDesignStore.getState()
+  const look = withDefaults(draft ?? photo.look)
+
+  const slide = (key: keyof PhotoLook, value: number) => setLookDraft(photo.id, { ...look, [key]: value })
+  const set = (patch: Partial<PhotoLook>) => updateLayer(photo.id, { look: { ...look, ...patch } })
+  // A drag commits as one undo step when released; keyboard nudges commit once they pause.
+  const endProps = { onPointerUp: commitLookDraft, onBlur: commitLookDraft, onTouchEnd: commitLookDraft }
+  useEffect(() => {
+    if (!draft) return
+    const t = setTimeout(commitLookDraft, 600)
+    return () => clearTimeout(t)
+  }, [draft, commitLookDraft])
+
+  return (
+    <div className="panel__body look">
+      <h3 className="panel__title">Effects</h3>
+      <div className="effect-grid">
+        {EFFECTS.map((e) => (
+          <button
+            key={e.id}
+            className={`effect-grid__item${look.effect === e.id ? ' effect-grid__item--active' : ''}`}
+            onClick={() => set({ effect: e.id })}
+          >
+            <EffectThumb src={photo.src} look={{ ...look, effect: e.id }} />
+            <span>{e.label}</span>
+          </button>
+        ))}
+      </div>
+      {look.effect !== 'none' && (
+        <label className="slider">
+          <span className="slider__label">Strength</span>
+          <input type="range" min={0} max={100} value={look.strength} onChange={(e) => slide('strength', +e.target.value)} {...endProps} />
+          <span className="slider__value">{look.strength}</span>
+        </label>
+      )}
+
+      <h3 className="panel__title">Adjust</h3>
+      {ADJUSTMENTS.map((a) => (
+        <label key={a.key} className="slider" onDoubleClick={() => set({ [a.key]: 0 })} title="Double-click to reset">
+          <span className="slider__label">{a.label}</span>
+          <input
+            type="range"
+            min={a.min}
+            max={a.max}
+            value={look[a.key] as number}
+            onChange={(e) => slide(a.key, +e.target.value)}
+            {...endProps}
+          />
+          <span className="slider__value">{look[a.key] as number}</span>
+        </label>
+      ))}
+      <button className="btn btn--small" onClick={() => updateLayer(photo.id, { look: undefined })} disabled={isDefaultLook(photo.look)}>
+        Reset all
+      </button>
+    </div>
+  )
+}
+
+/** Small preview of an effect on the user's own photo. */
+function EffectThumb({ src, look }: { src: string; look: Partial<PhotoLook> }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const effect = look.effect
+  useEffect(() => {
+    let alive = true
+    // Thumbnails show the effect only (with default strength), so they don't re-render per slider tick.
+    renderLook(src, { effect }, 160).then(
+      (bitmap) => {
+        const c = ref.current
+        if (!alive || !c) return
+        c.width = bitmap.width
+        c.height = bitmap.height
+        c.getContext('2d')!.drawImage(bitmap, 0, 0)
+      },
+      () => {},
+    )
+    return () => {
+      alive = false
+    }
+  }, [src, effect])
+  return <canvas ref={ref} className="effect-grid__thumb" />
 }
 
 function SampleGrid({ samples, onPick }: { samples: SampleDef[]; onPick: (s: SampleDef) => void }) {

@@ -78,7 +78,7 @@ The customization is always shown live on a 3D model. Pan/rotate/zoom is intuiti
 | 2 | Editor core | Konva canvas → 3D texture; move/scale/rotate/crop; undo/redo | **Done** (move/scale/rotate, crop, undo/redo) |
 | 3 | Blender scene v1 | Studio diorama, baked lighting, GLB export (parallel with 1–2) | |
 | 4 | Integration | Shop view ↔ edit view camera flights, hover bounces, loading screen | **Done** on a placeholder table (mug + tumbler); swap in the room after Phase 3 |
-| 5 | Content & effects | Templates (stickers, backgrounds, themes, text, emojis), filters, background removal, cartoonize | Templates **done**; 누끼 **done**: one click + rough lasso / tap to keep or remove (dev model, non-commercial); next: filters, cartoonize. Assets: [RESOURCES.md](RESOURCES.md) |
+| 5 | Content & effects | Templates (stickers, backgrounds, themes, text, emojis), filters, background removal, cartoonize | **Done**: templates; 누끼 (one click + lasso/taps, dev model is non-commercial); filters & effects (brightness, contrast, saturation, warmth, blur, sharpen; B&W, vintage, pop, posterize, pixel, emboss, cartoon), stored as data on the photo so the print server can re-apply them. Later: an AI cartoon/illustration model (license check first). Assets: [RESOURCES.md](RESOURCES.md) |
 | 6 | Randomizer | Reckless slider, seeded rolls, history strip | |
 | 7 | Checkout | Design storage + Shopify (or Korean PG) integration | |
 | 8 | Polish | Mobile optimization, sound, packing animation, more product models | |
@@ -96,6 +96,9 @@ Must be done before the shop takes real orders.
   before launch. Keep the "© OpenStreetMap contributors" credit if OSM data stays.
 - [ ] Strip photo metadata (date/GPS in `PhotoLayer.meta` and in uploaded originals) before
   designs are stored with an order.
+
+**UI redesign (proposed):** edit directly on the 3D product with floating controls and a bottom
+drawer, replacing the right-hand 2D panel. See [UI-REDESIGN.md](UI-REDESIGN.md).
 
 ## 8. Constraints / Risks
 - **Mobile first.** Most traffic is expected from Instagram on phones.

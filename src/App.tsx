@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { PRODUCTS, getProduct } from './config/products'
 import { Editor } from './editor/Editor'
 import { PanelSplitter } from './editor/PanelSplitter'
+import { SelectionOverlay } from './editor/SelectionOverlay'
 import { usePanelSizes } from './editor/panelSizes'
 import { Scene } from './scene/Scene'
 import { useDesignStore } from './store/designStore'
@@ -34,6 +35,7 @@ export default function App() {
       <main ref={mainRef} className="app__main" style={view === 'edit' ? panel.style : undefined}>
         <section ref={viewerRef} className="app__viewer">
           <Scene onReady={() => setReady(true)} bottomInset={view === 'shop' ? shopInset : 0} />
+          {view === 'edit' && <SelectionOverlay />}
           <p className="app__hint">{view === 'shop' ? 'Tap something to make it yours' : 'Drag to turn · scroll or pinch to zoom'}</p>
         </section>
 
@@ -114,7 +116,9 @@ function LoadingScreen({ ready }: { ready: boolean }) {
 function useEditorShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      // Typing in a text field keeps its own undo; sliders and buttons don't.
+      const t = e.target
+      if (t instanceof HTMLTextAreaElement || (t instanceof HTMLInputElement && !['range', 'checkbox', 'button'].includes(t.type))) return
       const { view, undo, redo, cancelCrop, cropDraft, lasso, endLasso, selectedId, removeLayer } = useDesignStore.getState()
       if (view !== 'edit') return
       const mod = e.ctrlKey || e.metaKey

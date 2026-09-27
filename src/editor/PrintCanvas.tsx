@@ -4,7 +4,9 @@ import { Circle, Group, Image as KImage, Layer as KLayer, Line, Rect, Stage, Tex
 import { DESIGN_UNITS_PER_INCH, designSize, type ProductSpec } from '../config/products'
 import { getFont, loadFontFor } from '../content/fonts'
 import { getPalette, patternTile, TILE } from '../content/patterns'
+import { printNodeName, registerPrintStage } from './layerGeometry'
 import {
+  layersWithDraft,
   selectedLayer,
   useDesignStore,
   type Background,
@@ -16,6 +18,8 @@ import {
 import { log } from '../debug/log'
 import { clampBox, fullImageBox, visibleBox, type Box } from './crop'
 import { requestLassoPreview, resetLassoPreview, useLassoPreview } from './cutout/removeBackground'
+import { isDefaultLook, type PhotoLook } from './look/look'
+import { FULL_SIDE, PREVIEW_SIDE, renderKey, renderLook } from './look/renderLook'
 import { useImages } from './useHtmlImage'
 
 const SAFE_INSET = 0.125 * DESIGN_UNITS_PER_INCH
@@ -45,12 +49,16 @@ export function PrintCanvas({ spec }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const stageRef = useRef<Konva.Stage>(null)
   const printLayerRef = useRef<Konva.Layer>(null)
+  const printStageRef = useRef<Konva.Stage>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   const [displayWidth, setDisplayWidth] = useState(0)
   const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 })
   const spaceHeld = useSpaceKey()
 
-  const { background, layers } = useDesignStore((s) => s.design)
+  const { background, layers: savedLayers } = useDesignStore((s) => s.design)
+  // Include a layer being dragged on the 3D product, so both views move live.
+  const layerDraft = useDesignStore((s) => s.layerDraft)
+  const layers = useMemo(() => layersWithDraft(savedLayers, layerDraft), [savedLayers, layerDraft])
   const selectedId = useDesignStore((s) => s.selectedId)
   const cropDraft = useDesignStore((s) => s.cropDraft)
   const lasso = useDesignStore((s) => s.lasso)
@@ -67,18 +75,27 @@ export function PrintCanvas({ spec }: Props) {
   const lassoPhoto = lasso ? layers.find((l): l is PhotoLayer => l.id === lasso.layerId && l.kind === 'photo') : undefined
   const { images, complete: imagesReady } = useImages(srcs)
   const fontsVersion = useFontsVersion(layers)
+  const lookDraft = useDesignStore((s) => s.lookDraft)
+  const looks = useLookImages(layers, lookDraft, lasso?.layerId)
 
   const baseScale = displayWidth / design.width
   const displayHeight = design.height * baseScale
   /** Screen px per design unit in the editing view. */
   const scale = baseScale * view.zoom
   const cropPhoto = cropDraft && selected?.kind === 'photo' && images.get(selected.src) ? selected : null
-  const content = { background, layers, design, spec, images, fontsVersion, lasso, cropPhoto, cropDraft }
+  const content = { background, layers, design, spec, images, looks: looks.images, fontsVersion, lasso, cropPhoto, cropDraft }
 
-  // The print is only worth publishing once every image has decoded.
+  // The print is only worth publishing once every image (and every photo look) is ready.
+  // Updated in a layout effect (synchronously on commit, before Konva's next animation-frame
+  // draw) and, when it flips to ready, the print is redrawn explicitly: a draw that ran while
+  // it wasn't ready skipped publishing, and nothing else may redraw it (the mug would stay
+  // stale until the next 2D edit).
   const complete = useRef(false)
-  useEffect(() => {
-    complete.current = imagesReady
+  const ready = imagesReady && looks.ready
+  useLayoutEffect(() => {
+    const wasReady = complete.current
+    complete.current = ready
+    if (ready && !wasReady) printLayerRef.current?.batchDraw()
   })
 
   // Track the container width so the stage stays responsive; keep the view's zoom and
@@ -102,6 +119,7 @@ export function PrintCanvas({ spec }: Props) {
   useEffect(() => {
     const layer = printLayerRef.current
     if (!layer) return
+    registerPrintStage(spec.id, printStageRef.current)
     const texture = printTextureCanvas(spec)
     const ctx = texture.getContext('2d')!
     const { markPrintDirty } = useDesignStore.getState()
@@ -118,6 +136,7 @@ export function PrintCanvas({ spec }: Props) {
     layer.batchDraw()
     return () => {
       layer.off('draw', publish)
+      registerPrintStage(spec.id, null)
     }
   }, [spec, design.width])
 
@@ -372,7 +391,7 @@ export function PrintCanvas({ spec }: Props) {
 
       {/* The print itself: fixed size, never zoomed, feeds the 3D texture. */}
       <div className="print-canvas__print" aria-hidden>
-        <Stage width={design.width} height={design.height} listening={false}>
+        <Stage ref={printStageRef} width={design.width} height={design.height} listening={false}>
           <KLayer ref={printLayerRef} listening={false}>
             <DesignContent {...content} />
           </KLayer>
@@ -388,6 +407,8 @@ type ContentProps = {
   design: { width: number; height: number }
   spec: ProductSpec
   images: Map<string, HTMLImageElement>
+  /** Rendered looks (filters/effects) by photo layer id. */
+  looks: Map<string, ImageBitmap>
   fontsVersion: number
   lasso: LassoState | null
   cropPhoto: PhotoLayer | null
@@ -397,7 +418,7 @@ type ContentProps = {
 }
 
 /** Background + layers, exactly as printed. Rendered by both the editing view and the print. */
-function DesignContent({ background, layers, design, spec, images, fontsVersion, lasso, cropPhoto, cropDraft, handlersFor }: ContentProps) {
+function DesignContent({ background, layers, design, spec, images, looks, fontsVersion, lasso, cropPhoto, cropDraft, handlersFor }: ContentProps) {
   return (
     <>
       <BackgroundNode background={background} width={design.width} height={design.height} baseColor={spec.color} />
@@ -412,20 +433,20 @@ function DesignContent({ background, layers, design, spec, images, fontsVersion,
             </PhotoFrame>
           )
         }
-        const handlers = handlersFor?.(layer)
+        const handlers = { name: printNodeName(layer.id), ...handlersFor?.(layer) }
         if (layer.kind === 'text') {
           return <TextNode key={`${layer.id}:${fontsVersion}`} layer={layer} {...handlers} />
         }
         // In lasso mode the photo shows its original (uncut) image so you can see what to circle.
         const src = lasso?.layerId === layer.id && layer.kind === 'photo' ? (layer.originalSrc ?? layer.src) : layer.src
-        const image = images.get(src)
+        const image = looks.get(layer.id) ?? images.get(src)
         if (!image) return null
         return (
           <KImage
             key={layer.id}
             {...handlers}
             image={image}
-            crop={layer.kind === 'photo' ? sourceCrop(layer) : undefined}
+            crop={layer.kind === 'photo' ? sourceCrop(layer, image) : undefined}
             x={layer.x}
             y={layer.y}
             width={layer.width}
@@ -480,13 +501,62 @@ function printTextureCanvas(spec: ProductSpec) {
   return canvas
 }
 
-function sourceCrop(p: PhotoLayer) {
-  return {
-    x: p.crop.x * p.naturalWidth,
-    y: p.crop.y * p.naturalHeight,
-    width: p.crop.width * p.naturalWidth,
-    height: p.crop.height * p.naturalHeight,
+/** The layer's crop in pixels of the image actually drawn (a look render may be smaller). */
+function sourceCrop(p: PhotoLayer, image: HTMLImageElement | ImageBitmap) {
+  const w = image instanceof HTMLImageElement ? image.naturalWidth : image.width
+  const h = image instanceof HTMLImageElement ? image.naturalHeight : image.height
+  return { x: p.crop.x * w, y: p.crop.y * h, width: p.crop.width * w, height: p.crop.height * h }
+}
+
+/**
+ * Rendered looks for photo layers that have one. While a slider is dragged (the draft), that
+ * layer renders at preview size; otherwise full size. Each layer keeps showing its last render
+ * until the next is ready (no flash of the unfiltered photo), and only the newest wanted render
+ * per layer is started, so fast slider drags don't queue up work.
+ */
+function useLookImages(layers: Layer[], draft: { layerId: string; look: Partial<PhotoLook> } | null, lassoLayerId?: string) {
+  const [results, setResults] = useState<Record<string, { key: string; image: ImageBitmap }>>({})
+  const running = useRef(new Map<string, string>())
+  const wanted = useRef(new Map<string, { key: string; src: string; look: Partial<PhotoLook>; side: number }>())
+
+  const needs = layers.flatMap((l) => {
+    if (l.kind !== 'photo' || l.id === lassoLayerId) return []
+    const isDraft = draft?.layerId === l.id
+    const look = isDraft ? draft.look : l.look
+    if (isDefaultLook(look)) return []
+    const side = isDraft ? PREVIEW_SIDE : FULL_SIDE
+    return [{ id: l.id, src: l.src, look: look!, side, key: renderKey(l.src, look!, side) }]
+  })
+  const needsKey = needs.map((n) => `${n.id}=${n.key}`).join(';')
+
+  useEffect(() => {
+    const start = (id: string) => {
+      const job = wanted.current.get(id)
+      if (!job || running.current.has(id)) return
+      running.current.set(id, job.key)
+      renderLook(job.src, job.look, job.side)
+        .then((image) => setResults((r) => ({ ...r, [id]: { key: job.key, image } })))
+        .catch((err) => log.error('look', 'render failed', err))
+        .finally(() => {
+          running.current.delete(id)
+          if (wanted.current.get(id)?.key !== job.key) start(id)
+          else wanted.current.delete(id)
+        })
+    }
+    for (const n of needs) {
+      if (results[n.id]?.key === n.key) continue
+      wanted.current.set(n.id, n)
+      start(n.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- needsKey captures `needs`
+  }, [needsKey])
+
+  const images = new Map<string, ImageBitmap>()
+  for (const n of needs) {
+    const r = results[n.id]
+    if (r) images.set(n.id, r.image)
   }
+  return { images, ready: needs.every((n) => results[n.id]) }
 }
 
 /**
@@ -556,7 +626,7 @@ type NodeHandlers = {
 }
 
 /** Text centered on (x, y): its offset is set from the measured size after each render. */
-function TextNode({ layer, ...handlers }: { layer: TextLayer } & Partial<NodeHandlers>) {
+function TextNode({ layer, ...handlers }: { layer: TextLayer; name?: string } & Partial<NodeHandlers>) {
   const ref = useRef<Konva.Text>(null)
   useLayoutEffect(() => {
     const n = ref.current

@@ -4,24 +4,24 @@ import * as THREE from 'three'
 import type { CylinderSpec } from '../config/products'
 import { log } from '../debug/log'
 import { useDesignStore } from '../store/designStore'
-import { cylinderSize, UNITS_PER_INCH } from './dimensions'
+import { cylinderSize } from './dimensions'
+import { cylinderBand } from './surface'
 
-type Props = { spec: CylinderSpec } & ThreeElements['group']
+type Props = {
+  spec: CylinderSpec
+  /** Extra props for the print band mesh (refs, pointer handlers for editing on the surface). */
+  bandProps?: ThreeElements['mesh']
+} & ThreeElements['group']
 
 /**
  * Placeholder mug / tumbler built from primitives, centered on its body. The print band is
  * an open cylinder whose UVs map 1:1 onto the flat print wrap; the wrap's seam (or the
  * gap for a handle) sits at +X.
  */
-export function CylinderProduct({ spec, ...groupProps }: Props) {
+export function CylinderProduct({ spec, bandProps, ...groupProps }: Props) {
   const { radius, height } = cylinderSize(spec)
   const wall = 0.018
-  const bandHeight = spec.print.heightIn * UNITS_PER_INCH
-  const bandY = (spec.printOffsetIn ?? 0) * UNITS_PER_INCH
-  const circumferenceIn = Math.PI * spec.body.diameterIn
-  const bandArc = Math.min(spec.print.widthIn / circumferenceIn, 0.995) * Math.PI * 2
-  // Center the wrap's gap on +X (theta = PI/2).
-  const bandStart = Math.PI / 2 + (Math.PI * 2 - bandArc) / 2
+  const band = cylinderBand(spec)
 
   const bandMaterial = useRef<THREE.MeshPhysicalMaterial>(null)
   const texture = useLiveCanvasTexture(spec.id)
@@ -52,8 +52,8 @@ export function CylinderProduct({ spec, ...groupProps }: Props) {
         <cylinderGeometry args={[radius, radius, height, 96, 1, true]} />
       </mesh>
       {/* Print band: sits a hair outside the body so it wins the depth test */}
-      <mesh position-y={bandY}>
-        <cylinderGeometry args={[radius + 0.0012, radius + 0.0012, bandHeight, 128, 1, true, bandStart, bandArc]} />
+      <mesh position-y={band.y} name="print-band" {...bandProps}>
+        <cylinderGeometry args={[band.radius, band.radius, band.height, 128, 1, true, band.start, band.arc]} />
         <meshPhysicalMaterial
           ref={bandMaterial}
           color="#ffffff"

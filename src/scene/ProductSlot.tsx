@@ -7,6 +7,7 @@ import { CylinderProduct } from './CylinderProduct'
 import { cylinderSize } from './dimensions'
 import { IdleFloat } from './IdleFloat'
 import { SpringyControls } from './SpringyControls'
+import { useSurfaceEditing } from './useSurfaceEditing'
 
 type Props = {
   spec: ProductSpec
@@ -30,6 +31,7 @@ export function ProductSlot({ spec, position, rest }: Props) {
   const dom = useThree((s) => s.gl.domElement)
   const editingThis = view === 'edit' && activeId === spec.id
   const { height } = cylinderSize(spec)
+  const bandProps = useSurfaceEditing(spec, editingThis)
 
   const [hovered, setHovered] = useState(false)
   const bounce = useRef<Group>(null)
@@ -73,7 +75,7 @@ export function ProductSlot({ spec, position, rest }: Props) {
         <group position-y={height / 2 + 0.012}>
           <SpringyControls rest={rest} enabled={editingThis}>
             <IdleFloat phase={position[0] * 3}>
-              <CylinderProduct spec={spec} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} />
+              <CylinderProduct spec={spec} bandProps={bandProps} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} />
             </IdleFloat>
           </SpringyControls>
         </group>

@@ -4,6 +4,7 @@ import { PRODUCTS } from '../config/products'
 import { applyCropBox, visibleBox, type Box } from '../editor/crop'
 import type { CutoutPrompt } from '../editor/cutout/protocol'
 import type { PhotoMeta } from '../editor/photoMeta'
+import type { PhotoLook } from '../editor/look/look'
 
 /** Normalized (0..1) region of the source image that is shown. */
 export type Crop = { x: number; y: number; width: number; height: number }
@@ -23,6 +24,8 @@ export type PhotoLayer = Placement & {
   originalSrc?: string
   /** When/where it was taken, from the file's EXIF (browser-only, see photoMeta.ts). */
   meta?: PhotoMeta
+  /** Adjustments + effect, applied non-destructively (see editor/look). */
+  look?: Partial<PhotoLook>
 }
 
 export type StickerLayer = Placement & {
@@ -86,6 +89,10 @@ type DesignState = {
   cropDraft: Box | null
   /** Lasso cutout being drawn; null when not in lasso mode. */
   lasso: LassoState | null
+  /** A layer being dragged on the 3D product: shown live, committed (one undo step) on release. */
+  layerDraft: { layerId: string; patch: LayerPatch } | null
+  /** A look being dragged on a slider: previewed live, committed (one undo step) on release. */
+  lookDraft: { layerId: string; look: Partial<PhotoLook> } | null
 
   /** Per product: the 2D print canvas the 3D model samples as a texture. */
   printCanvases: Record<string, HTMLCanvasElement>
@@ -114,6 +121,12 @@ type DesignState = {
   startLasso: () => void
   updateLasso: (patch: Partial<LassoState>) => void
   endLasso: () => void
+
+  setLayerDraft: (layerId: string, patch: LayerPatch) => void
+  commitLayerDraft: () => void
+  setLookDraft: (layerId: string, look: Partial<PhotoLook>) => void
+  /** Save the draft (if any) as the layer's look. */
+  commitLookDraft: () => void
 
   setPrintCanvas: (productId: string, canvas: HTMLCanvasElement) => void
   markPrintDirty: (productId: string) => void
@@ -151,6 +164,8 @@ export const useDesignStore = create<DesignState>()((set, get) => {
     selectedId: null,
     cropDraft: null,
     lasso: null,
+    lookDraft: null,
+    layerDraft: null,
     printCanvases: {},
     printVersions: {},
 
@@ -265,9 +280,30 @@ export const useDesignStore = create<DesignState>()((set, get) => {
     updateLasso: (patch) => set((s) => (s.lasso ? { lasso: { ...s.lasso, ...patch } } : s)),
     endLasso: () => set({ lasso: null }),
 
+    setLayerDraft: (layerId, patch) => set({ layerDraft: { layerId, patch } }),
+    commitLayerDraft: () => {
+      const { layerDraft } = get()
+      if (!layerDraft) return
+      set({ layerDraft: null })
+      get().updateLayer(layerDraft.layerId, layerDraft.patch)
+    },
+    setLookDraft: (layerId, look) => set({ lookDraft: { layerId, look } }),
+    commitLookDraft: () => {
+      const { lookDraft } = get()
+      if (!lookDraft) return
+      set({ lookDraft: null })
+      get().updateLayer(lookDraft.layerId, { look: lookDraft.look })
+    },
+
     setPrintCanvas: (productId, canvas) =>
       set((s) => ({ printCanvases: { ...s.printCanvases, [productId]: canvas } })),
     markPrintDirty: (productId) =>
       set((s) => ({ printVersions: { ...s.printVersions, [productId]: (s.printVersions[productId] ?? 0) + 1 } })),
   }
 })
+
+/** The design's layers with any in-progress drag applied (what should be drawn right now). */
+export function layersWithDraft(layers: Layer[], draft: { layerId: string; patch: LayerPatch } | null): Layer[] {
+  if (!draft) return layers
+  return layers.map((l) => (l.id === draft.layerId ? ({ ...l, ...draft.patch } as Layer) : l))
+}
