@@ -44,78 +44,59 @@ type View = { zoom: number; x: number; y: number }
  * fixed-size one at texture resolution that is shared with the 3D product. Keeping the print
  * separate means zooming the editor never zooms the print, and the texture never resizes.
  */
-export function PrintCanvas({ spec }: Props) {
+/**
+ * What the print looks like right now: layers (with any in-progress drag), their decoded
+ * images, rendered photo looks and loaded fonts. Shared by the print stage and the flat editor;
+ * images and looks are cached, so using it twice doesn't double the work.
+ */
+function useRenderData(spec: ProductSpec) {
   const design = designSize(spec)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const stageRef = useRef<Konva.Stage>(null)
-  const printLayerRef = useRef<Konva.Layer>(null)
-  const printStageRef = useRef<Konva.Stage>(null)
-  const transformerRef = useRef<Konva.Transformer>(null)
-  const [displayWidth, setDisplayWidth] = useState(0)
-  const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 })
-  const spaceHeld = useSpaceKey()
-
   const { background, layers: savedLayers } = useDesignStore((s) => s.design)
-  // Include a layer being dragged on the 3D product, so both views move live.
   const layerDraft = useDesignStore((s) => s.layerDraft)
   const layers = useMemo(() => layersWithDraft(savedLayers, layerDraft), [savedLayers, layerDraft])
-  const selectedId = useDesignStore((s) => s.selectedId)
   const cropDraft = useDesignStore((s) => s.cropDraft)
   const lasso = useDesignStore((s) => s.lasso)
-  /** Crop or lasso: the canvas is a tool surface, layers can't be moved. */
-  const editing = !!cropDraft || !!lasso
-  const select = useDesignStore((s) => s.select)
-  const updateLayer = useDesignStore((s) => s.updateLayer)
   const selected = useDesignStore(selectedLayer)
-
   const srcs = useMemo(
     () => layers.flatMap((l) => (l.kind === 'text' ? [] : [lasso?.layerId === l.id && l.kind === 'photo' ? (l.originalSrc ?? l.src) : l.src])),
     [layers, lasso?.layerId],
   )
-  const lassoPhoto = lasso ? layers.find((l): l is PhotoLayer => l.id === lasso.layerId && l.kind === 'photo') : undefined
   const { images, complete: imagesReady } = useImages(srcs)
   const fontsVersion = useFontsVersion(layers)
   const lookDraft = useDesignStore((s) => s.lookDraft)
   const looks = useLookImages(layers, lookDraft, lasso?.layerId)
-
-  const baseScale = displayWidth / design.width
-  const displayHeight = design.height * baseScale
-  /** Screen px per design unit in the editing view. */
-  const scale = baseScale * view.zoom
   const cropPhoto = cropDraft && selected?.kind === 'photo' && images.get(selected.src) ? selected : null
-  const content = { background, layers, design, spec, images, looks: looks.images, fontsVersion, lasso, cropPhoto, cropDraft }
+  return {
+    content: { background, layers, design, spec, images, looks: looks.images, fontsVersion, lasso, cropPhoto, cropDraft },
+    ready: imagesReady && looks.ready,
+  }
+}
+
+/**
+ * The print itself: a hidden, fixed-size stage at texture resolution that feeds the 3D product.
+ * Always mounted while editing (whether or not the flat editor is on screen), so the product
+ * updates from any kind of edit. Zooming the flat editor never touches it.
+ */
+export function PrintStage({ spec }: Props) {
+  const { content, ready } = useRenderData(spec)
+  const { design } = content
+  const printLayerRef = useRef<Konva.Layer>(null)
+  const printStageRef = useRef<Konva.Stage>(null)
 
   // The print is only worth publishing once every image (and every photo look) is ready.
   // Updated in a layout effect (synchronously on commit, before Konva's next animation-frame
   // draw) and, when it flips to ready, the print is redrawn explicitly: a draw that ran while
-  // it wasn't ready skipped publishing, and nothing else may redraw it (the mug would stay
-  // stale until the next 2D edit).
+  // it wasn't ready skipped publishing, and nothing else may redraw it (the product would stay
+  // stale until the next edit).
   const complete = useRef(false)
-  const ready = imagesReady && looks.ready
   useLayoutEffect(() => {
     const wasReady = complete.current
     complete.current = ready
     if (ready && !wasReady) printLayerRef.current?.batchDraw()
   })
 
-  // Track the container width so the stage stays responsive; keep the view's zoom and
-  // relative pan when the panel is resized.
-  useLayoutEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const observer = new ResizeObserver(([entry]) => {
-      const width = Math.floor(entry.contentRect.width)
-      setDisplayWidth((old) => {
-        if (old && width !== old) setView((v) => ({ ...v, x: (v.x * width) / old, y: (v.y * width) / old }))
-        return width
-      })
-    })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-
   // Publish every finished print frame to the 3D product (a fixed-size copy that outlives
-  // this editor, so the product keeps its print in the shop view).
+  // the editor, so the product keeps its print in the shop view).
   useEffect(() => {
     const layer = printLayerRef.current
     if (!layer) return
@@ -139,6 +120,56 @@ export function PrintCanvas({ spec }: Props) {
       registerPrintStage(spec.id, null)
     }
   }, [spec, design.width])
+
+  return (
+    <div className="print-stage" aria-hidden>
+      <Stage ref={printStageRef} width={design.width} height={design.height} listening={false}>
+        <KLayer ref={printLayerRef} listening={false}>
+          <DesignContent {...content} />
+        </KLayer>
+      </Stage>
+    </div>
+  )
+}
+
+/** The flat 2D editor: zoom/pan freely, with handles, crop and lasso tools. */
+export function PrintCanvas({ spec }: Props) {
+  const { content } = useRenderData(spec)
+  const { design, layers, images, fontsVersion, lasso, cropPhoto, cropDraft } = content
+  const containerRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<Konva.Stage>(null)
+  const transformerRef = useRef<Konva.Transformer>(null)
+  const [displayWidth, setDisplayWidth] = useState(0)
+  const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 })
+  const spaceHeld = useSpaceKey()
+
+  const selectedId = useDesignStore((s) => s.selectedId)
+  /** Crop or lasso: the canvas is a tool surface, layers can't be moved. */
+  const editing = !!cropDraft || !!lasso
+  const select = useDesignStore((s) => s.select)
+  const updateLayer = useDesignStore((s) => s.updateLayer)
+  const lassoPhoto = lasso ? layers.find((l): l is PhotoLayer => l.id === lasso.layerId && l.kind === 'photo') : undefined
+
+  const baseScale = displayWidth / design.width
+  const displayHeight = design.height * baseScale
+  /** Screen px per design unit in the editing view. */
+  const scale = baseScale * view.zoom
+
+  // Track the container width so the stage stays responsive; keep the view's zoom and
+  // relative pan when the panel is resized.
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) => {
+      const width = Math.floor(entry.contentRect.width)
+      setDisplayWidth((old) => {
+        if (old && width !== old) setView((v) => ({ ...v, x: (v.x * width) / old, y: (v.y * width) / old }))
+        return width
+      })
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   // Attach the transform handles to the selected layer (hidden while cropping / lassoing).
   useEffect(() => {
@@ -389,14 +420,6 @@ export function PrintCanvas({ spec }: Props) {
         <span>{spec.handle ? 'handle side' : 'back seam'} →</span>
       </div>
 
-      {/* The print itself: fixed size, never zoomed, feeds the 3D texture. */}
-      <div className="print-canvas__print" aria-hidden>
-        <Stage ref={printStageRef} width={design.width} height={design.height} listening={false}>
-          <KLayer ref={printLayerRef} listening={false}>
-            <DesignContent {...content} />
-          </KLayer>
-        </Stage>
-      </div>
     </div>
   )
 }

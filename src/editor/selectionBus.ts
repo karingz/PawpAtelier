@@ -7,6 +7,9 @@ export type SelectionFrame = {
   layerId: string
   /** Outline points in viewer px (follows the curved surface). */
   outline: [number, number][]
+  /** Layer center and its 4 box corners (top-left, top-right, bottom-right, bottom-left), px. */
+  center: { x: number; y: number }
+  corners: [number, number][]
   /** Top-most and bottom-most outline points, for placing the toolbar. */
   top: { x: number; y: number }
   bottom: { x: number; y: number }

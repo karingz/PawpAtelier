@@ -37,11 +37,12 @@ function layoutProducts(products: ProductSpec[]): { placed: Placed[]; span: numb
 
 type Props = {
   onReady?: () => void
-  /** Fraction of the view covered by UI at the bottom (the shop picker). */
+  /** Fractions of the view covered by UI (shop picker, edit dock), which framing avoids. */
   bottomInset?: number
+  leftInset?: number
 }
 
-export function Scene({ onReady, bottomInset = 0 }: Props) {
+export function Scene({ onReady, bottomInset = 0, leftInset = 0 }: Props) {
   const view = useDesignStore((s) => s.view)
   const productId = useDesignStore((s) => s.productId)
   const { placed, span, tallest } = useMemo(() => layoutProducts(PRODUCTS), [])
@@ -54,6 +55,8 @@ export function Scene({ onReady, bottomInset = 0 }: Props) {
         center: [active.x, active.height / 2, 0],
         width: active.width * 1.5,
         height: active.height * 1.45,
+        insetBottom: bottomInset,
+        insetLeft: leftInset,
       }
     }
     return {
@@ -63,7 +66,7 @@ export function Scene({ onReady, bottomInset = 0 }: Props) {
       height: tallest + 0.4,
       insetBottom: bottomInset,
     }
-  }, [view, productId, placed, span, tallest, bottomInset])
+  }, [view, productId, placed, span, tallest, bottomInset, leftInset])
 
   return (
     <Canvas

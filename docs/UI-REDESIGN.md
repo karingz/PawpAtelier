@@ -77,9 +77,15 @@ directly on the 3D product, like a game character customizer.
    Surface mapping (`scene/surface.ts`), hit testing (`editor/layerGeometry.ts`), drag along the
    surface (`scene/useSurfaceEditing.ts`), outline + floating toolbar (`editor/SelectionOverlay.tsx`).
    The 2D panel stays as it is. *Go / no-go point:* does direct manipulation feel good on a phone?
-2. **Handles & gestures:** corner scale, rotate handle, pinch/twist, auto-face, keyboard nudges.
-3. **Drawer UI:** category bar + drawer with the existing panels; camera reframing above the
-   drawer; new items placed facing the camera. The right panel becomes hidden behind "Flat view".
+2. ✅ **Handles & gestures** (built 2026-09-27): corner scale and rotate knob drawn on the 3D view
+   (rotation snaps to 0/90/180/270° unless Shift), two-finger pinch + twist on a held layer,
+   auto-face on selection, keyboard nudges (arrows / Shift, `[` `]` rotate, `-` `=` scale; a burst
+   is one undo step). The floating toolbar moved below the layer.
+3. ✅ **Drawer UI** (built 2026-09-27): edit view is the full 3D scene with a category bar
+   (phone: bottom; desktop: left rail) and a drawer reusing the panels; the camera frames the
+   product beside/above it; floating undo/redo; header **3D / Flat** switch (Flat = the old 2D
+   editor). Crop and Lasso switch to Flat while active (their own full-screen tools: Phase 4).
+   The print moved into an always-mounted `PrintStage`, so the product updates from any view.
 4. **Modal tools:** full-screen Crop and Lasso for the selected photo; inline text editing on the mug.
 5. **Wrap strip + cleanup:** mini-map of the whole print; remove the old panel/splitter; tune
    desktop layout.

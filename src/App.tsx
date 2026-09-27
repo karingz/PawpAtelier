@@ -1,11 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { PRODUCTS, getProduct } from './config/products'
+import { EditDock, ModeSwitch } from './editor/EditDock'
 import { Editor } from './editor/Editor'
+import { PrintStage } from './editor/PrintCanvas'
+import { useUiStore } from './store/uiStore'
 import { PanelSplitter } from './editor/PanelSplitter'
 import { SelectionOverlay } from './editor/SelectionOverlay'
 import { usePanelSizes } from './editor/panelSizes'
 import { Scene } from './scene/Scene'
-import { useDesignStore } from './store/designStore'
+import { transformPatch } from './editor/layerGeometry'
+import { layersWithDraft, useDesignStore } from './store/designStore'
 
 export default function App() {
   const view = useDesignStore((s) => s.view)
@@ -17,11 +21,19 @@ export default function App() {
   const shopInset = useCoveredFraction(viewerRef, shopRef, view === 'shop')
   const mainRef = useRef<HTMLElement>(null)
   const panel = usePanelSizes()
+  // Editing on the 3D product (dock + drawer), or the flat 2D editor. Crop and lasso still
+  // live in the flat editor, so they switch to it while active.
+  const flatChosen = useUiStore((s) => s.flat)
+  const tool = useDesignStore((s) => s.cropDraft !== null || s.lasso !== null)
+  const flat = view === 'edit' && (flatChosen || tool)
+  const docked = view === 'edit' && !flat
+  const dockRef = useRef<HTMLDivElement>(null)
+  const dockInset = useDockInsets(viewerRef, dockRef, docked)
 
   useEditorShortcuts()
 
   return (
-    <div className={`app app--${view}`}>
+    <div className={`app app--${view}${docked ? ' app--docked' : ''}`}>
       <header className="app__header">
         {view === 'edit' && (
           <button className="btn btn--back" onClick={backToShop}>
@@ -30,18 +42,25 @@ export default function App() {
         )}
         <h1>Pawp Atelier</h1>
         {view === 'edit' && <span className="app__product">{spec.name}</span>}
+        {view === 'edit' && <ModeSwitch />}
       </header>
 
-      <main ref={mainRef} className="app__main" style={view === 'edit' ? panel.style : undefined}>
+      <main ref={mainRef} className="app__main" style={flat ? panel.style : undefined}>
         <section ref={viewerRef} className="app__viewer">
-          <Scene onReady={() => setReady(true)} bottomInset={view === 'shop' ? shopInset : 0} />
-          {view === 'edit' && <SelectionOverlay />}
+          <Scene
+            onReady={() => setReady(true)}
+            bottomInset={view === 'shop' ? shopInset : docked ? dockInset.bottom : 0}
+            leftInset={docked ? dockInset.left : 0}
+          />
+          {view === 'edit' && !tool && <SelectionOverlay />}
           <p className="app__hint">{view === 'shop' ? 'Tap something to make it yours' : 'Drag to turn · scroll or pinch to zoom'}</p>
+          {docked && <EditDock key={spec.id} spec={spec} dockRef={dockRef} />}
         </section>
+        {/* The print feeding the 3D product: mounted for any kind of editing. */}
+        {view === 'edit' && <PrintStage key={spec.id} spec={spec} />}
 
-        {view === 'shop' ? (
-          <ShopSheet ref={shopRef} />
-        ) : (
+        {view === 'shop' && <ShopSheet ref={shopRef} />}
+        {flat && (
           <>
             <PanelSplitter mainRef={mainRef} setSizes={panel.setSizes} />
             <Editor key={spec.id} spec={spec} />
@@ -98,6 +117,37 @@ function useCoveredFraction(
   return fraction
 }
 
+/**
+ * How much of the 3D view the dock covers: from the bottom on phones (bar + drawer), from the
+ * left on desktop (rail + drawer), as fractions, so the camera can frame the product beside it.
+ */
+function useDockInsets(viewer: RefObject<HTMLElement | null>, dock: RefObject<HTMLElement | null>, active: boolean) {
+  const [insets, setInsets] = useState({ bottom: 0, left: 0 })
+  useLayoutEffect(() => {
+    const v = viewer.current
+    const d = dock.current
+    if (!active || !v || !d) return
+    const measure = () => {
+      const vr = v.getBoundingClientRect()
+      const dr = d.getBoundingClientRect()
+      const side = dr.height > vr.height * 0.8 // a full-height rail = desktop layout
+      setInsets(
+        side
+          ? { bottom: 0, left: vr.width > 0 ? Math.max(0, dr.right - vr.left) / vr.width : 0 }
+          : { bottom: vr.height > 0 ? Math.max(0, vr.bottom - dr.top) / vr.height : 0, left: 0 },
+      )
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(v)
+    observer.observe(d)
+    return () => observer.disconnect()
+  }, [viewer, dock, active])
+  return active ? insets : NO_INSETS
+}
+
+const NO_INSETS = { bottom: 0, left: 0 }
+
 /** Covers the page until the 3D scene has drawn its first frame, then fades away. */
 function LoadingScreen({ ready }: { ready: boolean }) {
   const [gone, setGone] = useState(false)
@@ -137,9 +187,36 @@ function useEditorShortcuts() {
       } else if ((key === 'delete' || key === 'backspace') && selectedId && !cropDraft && !lasso) {
         e.preventDefault()
         removeLayer(selectedId)
+      } else if (selectedId && !cropDraft && !lasso && !mod && !(t instanceof HTMLInputElement) && nudge(e, selectedId)) {
+        e.preventDefault()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+}
+
+let nudgeCommit: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Keyboard nudges for the selected layer: arrows move (Shift = 10×), [ ] rotate, - = scale.
+ * Shown live; a burst of presses is committed as one undo step once they pause.
+ */
+function nudge(e: KeyboardEvent, layerId: string) {
+  const step = e.shiftKey ? 20 : 2
+  const moves: Record<string, [number, number]> = { arrowleft: [-step, 0], arrowright: [step, 0], arrowup: [0, -step], arrowdown: [0, step] }
+  const key = e.key.toLowerCase()
+  const st = useDesignStore.getState()
+  const layer = layersWithDraft(st.design.layers, st.layerDraft).find((l) => l.id === layerId)
+  if (!layer) return false
+  const keep = st.layerDraft?.layerId === layerId ? st.layerDraft.patch : {}
+  let patch
+  if (moves[key]) patch = { x: layer.x + moves[key][0], y: layer.y + moves[key][1] }
+  else if (key === '[' || key === ']') patch = { rotation: layer.rotation + (key === ']' ? 1 : -1) * (e.shiftKey ? 15 : 3) }
+  else if (key === '-' || key === '=' || key === '+') patch = transformPatch(layer, key === '-' ? 0.96 : 1.04, layer.rotation)
+  else return false
+  st.setLayerDraft(layerId, { ...keep, ...patch })
+  clearTimeout(nudgeCommit)
+  nudgeCommit = setTimeout(() => useDesignStore.getState().commitLayerDraft(), 500)
+  return true
 }

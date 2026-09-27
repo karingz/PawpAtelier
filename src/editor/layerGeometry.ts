@@ -1,5 +1,5 @@
 import type Konva from 'konva'
-import type { Layer } from '../store/designStore'
+import type { Layer, LayerPatch } from '../store/designStore'
 
 /** Each product's hidden print stage (registered by PrintCanvas), for measuring text boxes. */
 const printStages = new Map<string, Konva.Stage>()
@@ -63,4 +63,23 @@ export function layerAt(productId: string, layers: Layer[], x: number, y: number
     if (boxContains(layerBox(productId, layers[i]), x, y)) return layers[i]
   }
   return undefined
+}
+
+const MIN_SIZE = 20
+const MIN_FONT = 8
+
+/**
+ * Patch that scales `layer` (as it was when a gesture started) by `factor` and sets its
+ * rotation. Text scales by font size; images keep their aspect ratio.
+ */
+export function transformPatch(layer: Layer, factor: number, rotation: number): LayerPatch {
+  if (layer.kind === 'text') return { fontSize: Math.max(MIN_FONT, layer.fontSize * factor), rotation }
+  const f = Math.max(factor, MIN_SIZE / Math.min(layer.width, layer.height))
+  return { width: layer.width * f, height: layer.height * f, rotation }
+}
+
+/** Keep an angle in (-180, 180]. */
+export function normalizeDegrees(deg: number) {
+  const d = ((((deg + 180) % 360) + 360) % 360) - 180
+  return d === -180 ? 180 : d
 }

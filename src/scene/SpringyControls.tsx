@@ -19,6 +19,11 @@ type Props = {
   stiffness?: number
   /** Below 2 * sqrt(stiffness) the spring overshoots, which is the point. */
   damping?: number
+  /**
+   * Turn to this spin (radians from rest, e.g. to bring a selected layer to the front). A new
+   * `key` triggers it; ignored if already close; any drag cancels it.
+   */
+  face?: { spin: number; key: string } | null
 }
 
 /**
@@ -34,6 +39,7 @@ export function SpringyControls({
   speed = 0.009,
   stiffness = 140,
   damping = 11,
+  face = null,
 }: Props) {
   const group = useRef<Group>(null)
   const dom = useThree((s) => s.gl.domElement)
@@ -48,7 +54,20 @@ export function SpringyControls({
     rawTilt: 0,
     spin: { x: 0, v: 0 },
     tilt: { x: 0, v: 0 },
+    faceTarget: null as number | null,
   })
+
+  // Auto-face: pick the nearest equivalent angle within the spin limits.
+  const faceKey = face?.key
+  useEffect(() => {
+    if (!face || !enabled) return
+    const s = state.current
+    const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a))
+    const diff = wrap(face.spin - s.spin.x)
+    if (Math.abs(diff) < 0.45) return // already roughly facing
+    s.faceTarget = clamp(s.spin.x + diff, azimuth)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only for a new face request
+  }, [faceKey, enabled])
 
   useEffect(() => {
     if (!enabled) return
@@ -56,6 +75,7 @@ export function SpringyControls({
     const onDown = (e: PointerEvent) => {
       // A layer grabbed on the surface takes this pointer (R3F handles it before us).
       if (s.dragging || gesture.layerDrag) return
+      s.faceTarget = null
       s.dragging = true
       s.pointerId = e.pointerId
       s.startX = e.clientX
@@ -118,6 +138,10 @@ export function SpringyControls({
     } else if (!enabled) {
       spring(s.spin, 0, stiffness, damping, dt)
       spring(s.tilt, 0, stiffness, damping, dt)
+    } else if (s.faceTarget !== null) {
+      spring(s.spin, s.faceTarget, stiffness, damping, dt)
+      spring(s.tilt, 0, stiffness, damping, dt)
+      if (Math.abs(s.spin.x - s.faceTarget) < 0.002 && Math.abs(s.spin.v) < 0.01) s.faceTarget = null
     } else {
       // Spin keeps a little momentum inside the limits; tilt always goes home.
       const spinTarget = clamp(s.spin.x, azimuth)

@@ -11,8 +11,9 @@ export type Framing = {
   center: [number, number, number]
   width: number
   height: number
-  /** Fraction (0..1) of the view covered by UI at the bottom; the framing avoids it. */
+  /** Fractions (0..1) of the view covered by UI at the bottom / left; the framing avoids them. */
   insetBottom?: number
+  insetLeft?: number
 }
 
 /** Camera looks slightly down at what it frames. */
@@ -22,11 +23,13 @@ const MARGIN = 1.15
 function poseFor(framing: Framing, fovDeg: number, aspect: number) {
   const halfV = Math.tan(THREE.MathUtils.degToRad(fovDeg) / 2)
   const inset = THREE.MathUtils.clamp(framing.insetBottom ?? 0, 0, 0.6)
+  const insetX = THREE.MathUtils.clamp(framing.insetLeft ?? 0, 0, 0.6)
   const distance =
-    Math.max(framing.height / 2 / (halfV * (1 - inset)), framing.width / 2 / (halfV * aspect)) * MARGIN
-  // Aim below the subject so it sits centered in the uncovered part of the view.
+    Math.max(framing.height / 2 / (halfV * (1 - inset)), framing.width / 2 / (halfV * aspect * (1 - insetX))) * MARGIN
+  // Aim below / left of the subject so it sits centered in the uncovered part of the view.
   const look = new THREE.Vector3(...framing.center)
   look.y -= inset * distance * halfV
+  look.x -= insetX * distance * halfV * aspect
   return { look, pos: look.clone().addScaledVector(VIEW_DIR, distance) }
 }
 
@@ -135,6 +138,8 @@ function useZoomGestures(enabled: boolean, resetKey: string) {
       return Math.hypot(a.x - b.x, a.y - b.y)
     }
     const onDown = (e: PointerEvent) => {
+      // Two fingers on a grabbed layer scale/rotate it (useSurfaceEditing), not the view.
+      if (gesture.layerDrag) return
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
       if (pointers.size === 2) {
         pinch = { dist: dist(), raw: s.raw }

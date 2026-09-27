@@ -11,17 +11,22 @@ import { dateOptions, formatTakenAt, placeOptions, printQuality, readPhotoMeta, 
 import { ADJUSTMENTS, EFFECTS, isDefaultLook, withDefaults, type PhotoLook } from './look/look'
 import { renderLook } from './look/renderLook'
 import { PrintCanvas } from './PrintCanvas'
+import type { Tab } from '../store/uiStore'
+import { TABS } from './tabs'
 import { loadImageSize } from './useHtmlImage'
 
-type Tab = 'photo' | 'effects' | 'stickers' | 'text' | 'background'
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'photo', label: 'Photo' },
-  { id: 'effects', label: 'Effects' },
-  { id: 'stickers', label: 'Stickers' },
-  { id: 'text', label: 'Text' },
-  { id: 'background', label: 'Background' },
-]
+/** The content for one category, used by the flat editor's tabs and the 3D view's drawer. */
+export function TabPanel({ tab, spec }: { tab: Tab; spec: ProductSpec }) {
+  return (
+    <>
+      {tab === 'photo' && <PhotoPanel spec={spec} />}
+      {tab === 'effects' && <EffectsPanel />}
+      {tab === 'stickers' && <StickerPanel spec={spec} />}
+      {tab === 'text' && <TextPanel spec={spec} />}
+      {tab === 'background' && <BackgroundPanel />}
+    </>
+  )
+}
 
 const TEXT_COLORS = ['#3b2f2f', '#ffffff', '#d9607f', '#f2c14e', '#7cc9a9', '#7aa7e8', '#a58be0', '#2b2b2b']
 const OUTLINES: { label: string; color: string | null }[] = [
@@ -66,11 +71,7 @@ export function Editor({ spec }: { spec: ProductSpec }) {
             ))}
           </nav>
           <div className="panel">
-            {tab === 'photo' && <PhotoPanel spec={spec} />}
-            {tab === 'effects' && <EffectsPanel />}
-            {tab === 'stickers' && <StickerPanel spec={spec} />}
-            {tab === 'text' && <TextPanel spec={spec} />}
-            {tab === 'background' && <BackgroundPanel />}
+            <TabPanel tab={tab} spec={spec} />
           </div>
         </>
       )}

@@ -1,12 +1,13 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import type { Group } from 'three'
-import type { ProductSpec } from '../config/products'
+import { designSize, type ProductSpec } from '../config/products'
 import { useDesignStore } from '../store/designStore'
 import { CylinderProduct } from './CylinderProduct'
 import { cylinderSize } from './dimensions'
 import { IdleFloat } from './IdleFloat'
 import { SpringyControls } from './SpringyControls'
+import { cylinderBand } from './surface'
 import { useSurfaceEditing } from './useSurfaceEditing'
 
 type Props = {
@@ -32,6 +33,19 @@ export function ProductSlot({ spec, position, rest }: Props) {
   const editingThis = view === 'edit' && activeId === spec.id
   const { height } = cylinderSize(spec)
   const bandProps = useSurfaceEditing(spec, editingThis)
+
+  // Auto-face: when a layer gets selected, turn the product so its center faces the camera.
+  // A point at band angle θ faces the camera when θ + rest spin + spin ≡ 0.
+  const selectedId = useDesignStore((s) => s.selectedId)
+  const face = useMemo(() => {
+    if (!editingThis || !selectedId) return null
+    const layer = useDesignStore.getState().design.layers.find((l) => l.id === selectedId)
+    if (!layer) return null
+    const band = cylinderBand(spec)
+    const theta = band.start + (layer.x / designSize(spec).width) * band.arc
+    const spin = -(theta + rest[1])
+    return { spin: Math.atan2(Math.sin(spin), Math.cos(spin)), key: selectedId }
+  }, [editingThis, selectedId, spec, rest])
 
   const [hovered, setHovered] = useState(false)
   const bounce = useRef<Group>(null)
@@ -73,7 +87,7 @@ export function ProductSlot({ spec, position, rest }: Props) {
       <group ref={bounce}>
         {/* Lifted a hair so the idle bob never dips into the table */}
         <group position-y={height / 2 + 0.012}>
-          <SpringyControls rest={rest} enabled={editingThis}>
+          <SpringyControls rest={rest} enabled={editingThis} face={face}>
             <IdleFloat phase={position[0] * 3}>
               <CylinderProduct spec={spec} bandProps={bandProps} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} />
             </IdleFloat>
