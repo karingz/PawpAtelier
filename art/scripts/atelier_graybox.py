@@ -19,7 +19,7 @@ def col(name):
 PAL = {
  'wall': '#F6EFE6', 'wall2': '#EFE3D0', 'floor': '#E2C29F', 'wood': '#C99A6B', 'wood_dark': '#9B6B47',
  'pink': '#D9607F', 'pink_soft': '#F4B6C6', 'sage': '#9BBF9A', 'cream': '#FFF8EE', 'white': '#FFFFFF',
- 'glass': '#CFE8FF', 'ink': '#3B2F2F', 'brass': '#D8B46A', 'rug': '#F7D9C4', 'bed': '#F59AB5', 'cushion': '#FFE4EC',
+ 'glass': '#CFE8FF', 'ink': '#3B2F2F', 'brass': '#D8B46A', 'rug': '#F7D9C4', 'bed': '#F59AB5', 'cushion': '#FFE4EC', 'linen': '#E6D5BC',
 }
 def hex2rgb(h):
     h = h.lstrip('#'); return tuple(int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
@@ -110,13 +110,92 @@ box('cabinet_top_tray', (0.7, 0.32, 0.04), (cx, D/2 - 0.3, 1.07), 'cream', bevel
 
 # ---- zone: apparel corner (left wall)
 ax, ay = -1.75, 0.55
-cyl('dressform_base', 0.18, 0.05, (ax, ay, 0.025), 'wood_dark', verts=20)
-cyl('dressform_pole', 0.025, 1.0, (ax, ay, 0.55), 'brass', verts=10)
-bpy.ops.mesh.primitive_uv_sphere_add(radius=0.22, location=(ax, ay, 1.28), segments=20, ring_count=10)
-torso = bpy.context.active_object; torso.name = 'dressform_torso'; torso.scale = (1.0, 0.65, 1.35)
-bpy.ops.object.transform_apply(scale=True); bpy.ops.object.shade_smooth(); torso.data.materials.append(mat('cream'))
-for c in torso.users_collection: c.objects.unlink(torso)
-col('Room').objects.link(torso)
+def link_to(o, collection):
+    for c in o.users_collection: c.objects.unlink(o)
+    col(collection).objects.link(o)
+
+def loft(name, rings, key, at, collection='Room', segs=32, cap_bottom=False, cap_top=False, subsurf=1):
+    """A smooth body from horizontal rings (z, half-width, half-depth, squareness, y-offset),
+    each a superellipse; squareness 2 = ellipse, higher = boxier (shoulders)."""
+    verts, faces = [], []
+    for z, a, b, n, cy in rings:
+        for i in range(segs):
+            t = 2 * math.pi * i / segs
+            c, s_ = math.cos(t), math.sin(t)
+            x = a * math.copysign(abs(c) ** (2 / n), c)
+            y = b * math.copysign(abs(s_) ** (2 / n), s_)
+            verts.append((at[0] + x, at[1] + y + cy, z))
+    for r in range(len(rings) - 1):
+        for i in range(segs):
+            j = (i + 1) % segs
+            faces.append((r * segs + i, r * segs + j, (r + 1) * segs + j, (r + 1) * segs + i))
+    if cap_bottom: faces.append(tuple(reversed(range(segs))))
+    if cap_top: faces.append(tuple((len(rings) - 1) * segs + i for i in range(segs)))
+    me = bpy.data.meshes.new(name); me.from_pydata(verts, [], faces); me.update()
+    o = bpy.data.objects.new(name, me); col(collection).objects.link(o)
+    for poly in me.polygons: poly.use_smooth = True
+    if subsurf:
+        m = o.modifiers.new('Subsurf', 'SUBSURF'); m.levels = subsurf; m.render_levels = subsurf
+    o.data.materials.append(mat(key))
+    return o
+
+def rod(name, p0, p1, r, key, collection='Room', verts=12):
+    p0, p1 = Vector(p0), Vector(p1)
+    d = p1 - p0
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=d.length, location=(p0 + p1) / 2, vertices=verts)
+    o = bpy.context.active_object; o.name = name
+    o.rotation_mode = 'QUATERNION'; o.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(d)
+    bpy.ops.object.shade_smooth(); o.data.materials.append(mat(key)); link_to(o, collection)
+    return o
+
+def blob(name, r, loc, scale, key, collection='Room'):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=r, location=loc, segments=16, ring_count=8)
+    o = bpy.context.active_object; o.name = name; o.scale = scale
+    bpy.ops.object.transform_apply(scale=True); bpy.ops.object.shade_smooth()
+    o.data.materials.append(mat(key)); link_to(o, collection)
+    return o
+
+# Dress form: tripod stand, brass column, shaped linen torso (front faces -Y), wooden neck cap.
+hub_z = 0.42
+cyl('dressform_hub', 0.035, 0.07, (ax, ay, hub_z), 'wood_dark', verts=16)
+for k in range(3):
+    t = math.radians(90 + k * 120)
+    rod(f'dressform_leg_{k}', (ax, ay, hub_z), (ax + 0.24 * math.cos(t), ay + 0.24 * math.sin(t), 0.015), 0.014, 'wood_dark')
+    blob(f'dressform_foot_{k}', 0.022, (ax + 0.245 * math.cos(t), ay + 0.245 * math.sin(t), 0.015), (1, 1, 0.6), 'wood_dark')
+cyl('dressform_pole', 0.014, 0.6, (ax, ay, hub_z + 0.3), 'brass', verts=10, bevel=0)
+TORSO = [  # z, half-width, half-depth, squareness, y-offset (negative = forward)
+    (0.965, 0.115, 0.085, 2.0, 0), (0.99, 0.155, 0.112, 2.2, 0), (1.05, 0.170, 0.120, 2.2, 0),
+    (1.13, 0.138, 0.100, 2.0, 0), (1.20, 0.140, 0.102, 2.0, -0.005), (1.28, 0.163, 0.118, 2.2, -0.012),
+    (1.35, 0.170, 0.112, 2.4, -0.008), (1.41, 0.172, 0.100, 2.8, 0), (1.445, 0.150, 0.088, 2.8, 0),
+    (1.465, 0.105, 0.070, 2.4, 0), (1.477, 0.055, 0.050, 2.0, 0), (1.52, 0.047, 0.044, 2.0, 0), (1.53, 0.040, 0.038, 2.0, 0),
+]
+loft('dressform_torso', TORSO, 'linen', (ax, ay), cap_bottom=True, cap_top=True)
+cyl('dressform_cap', 0.034, 0.025, (ax, ay, 1.54), 'wood_dark', verts=16, bevel=0.006)
+blob('dressform_cap_knob', 0.014, (ax, ay, 1.562), (1, 1, 1), 'wood_dark')
+
+# A display tee dressed on the form: a loose shell, short sleeves, crew collar and a paw print.
+TEE = [
+    (1.02, 0.183, 0.133, 2.3, 0), (1.06, 0.184, 0.132, 2.2, 0), (1.13, 0.166, 0.122, 2.1, 0),
+    (1.20, 0.161, 0.120, 2.1, -0.005), (1.28, 0.177, 0.131, 2.2, -0.012), (1.35, 0.183, 0.125, 2.4, -0.008),
+    (1.41, 0.185, 0.113, 2.8, 0), (1.445, 0.163, 0.101, 2.8, 0), (1.466, 0.117, 0.081, 2.4, 0), (1.476, 0.072, 0.063, 2.0, 0),
+]
+loft('dressform_tee', TEE, 'white', (ax, ay))
+bpy.ops.mesh.primitive_torus_add(major_radius=0.068, minor_radius=0.008, location=(ax, ay, 1.476), major_segments=32, minor_segments=8)
+collar = bpy.context.active_object; collar.name = 'dressform_tee_collar'; collar.scale = (1, 0.87, 1)
+bpy.ops.object.transform_apply(scale=True); bpy.ops.object.shade_smooth(); collar.data.materials.append(mat('white')); link_to(collar, 'Room')
+for side in (-1, 1):
+    a = math.radians(40)  # sleeve hangs 40 degrees below horizontal
+    d = Vector((side * math.cos(a), 0, -math.sin(a)))
+    root_ = Vector((ax + side * 0.13, ay, 1.405))
+    bpy.ops.mesh.primitive_cone_add(radius1=0.07, radius2=0.062, depth=0.15, vertices=24, end_fill_type='NGON',
+                                    location=root_ + d * 0.075, rotation=(0, -side * math.radians(50), 0))
+    sl = bpy.context.active_object; sl.name = f'dressform_tee_sleeve_{"l" if side < 0 else "r"}'; sl.scale = (1, 0.85, 1)
+    bpy.ops.object.transform_apply(scale=True); bpy.ops.object.shade_smooth(); sl.data.materials.append(mat('white')); link_to(sl, 'Room')
+# Paw print on the chest (pad + four toe beans), sunk slightly into the tee's front.
+fy = ay - 0.143
+blob('dressform_tee_paw_pad', 0.03, (ax, fy, 1.27), (1, 0.25, 0.85), 'pink')
+for i, (dx, dz) in enumerate(((-0.036, 0.03), (-0.013, 0.048), (0.013, 0.048), (0.036, 0.03))):
+    blob(f'dressform_tee_paw_toe_{i}', 0.012, (ax + dx, fy + 0.002 + abs(dx) * 0.12, 1.27 + dz), (1, 0.3, 1.15), 'pink')
 box('pegboard', (0.04, 1.0, 0.7), (-W/2 + 0.03, -0.55, 1.6), 'cream', bevel=0.01)
 for i in range(3):
     cyl(f'peg_hook_{i}', 0.015, 0.12, (-W/2 + 0.1, -0.85 + i * 0.3, 1.8), 'brass', verts=8, bevel=0, rot=(0, math.pi/2, 0))
@@ -206,6 +285,7 @@ def cam(name, loc, target, lens=35):
     col('Cameras').objects.link(o)
     return o
 room_target = (0.0, 0.4, 0.85)
+empty('room_target', room_target, kind='SPHERE', size=0.25)
 cam('cam_room_landscape', (5.4, -5.6, 3.6), room_target, lens=35)
 cam('cam_room_portrait', (4.3, -4.7, 3.4), (0.0, 0.35, 0.75), lens=24)
 scene.camera = bpy.data.objects['cam_room_landscape']

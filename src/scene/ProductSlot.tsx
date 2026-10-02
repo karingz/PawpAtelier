@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import * as THREE from 'three'
 import type { Group } from 'three'
+import { BlobShadow } from '../room/Room'
 import { designSize, type ProductSpec } from '../config/products'
 import { useDesignStore } from '../store/designStore'
 import { CylinderProduct } from './CylinderProduct'
@@ -13,10 +15,14 @@ import { useSurfaceEditing } from './useSurfaceEditing'
 
 type Props = {
   spec: ProductSpec
-  /** Where the product's base sits on the table. */
-  position: [number, number, number]
+  /** Where the product's base rests in the room (its shelf / slot). */
+  home: THREE.Vector3
+  /** Where it goes to be customized (the workbench). */
+  stage: THREE.Vector3
   /** Resting rotation [tilt, spin]; spin chosen so the print's center faces the camera. */
   rest: [number, number]
+  /** Yaw of the camera's viewing direction (radians): "facing the camera" means this angle. */
+  viewYaw: number
 }
 
 /** Pointer travel (px) beyond which a press counts as a drag, not a tap. */
@@ -26,7 +32,7 @@ const TAP_SLOP = 6
  * One product on the table: squashes and hops on hover, pops when tapped, and is
  * drag-turnable only while it is the one being edited.
  */
-export function ProductSlot({ spec, position, rest }: Props) {
+export function ProductSlot({ spec, home, stage, rest, viewYaw }: Props) {
   const view = useDesignStore((s) => s.view)
   const activeId = useDesignStore((s) => s.productId)
   const openProduct = useDesignStore((s) => s.openProduct)
@@ -35,11 +41,11 @@ export function ProductSlot({ spec, position, rest }: Props) {
   const { height } = cylinderSize(spec)
   const bandProps = useSurfaceEditing(spec, editingThis)
 
-  // A point at band angle θ faces the camera when θ + rest spin + spin ≡ 0.
+  // A point at band angle θ faces the camera when θ + rest spin + spin ≡ the camera's yaw.
   const spinToFace = (x: number) => {
     const band = cylinderBand(spec)
     const theta = band.start + (x / designSize(spec).width) * band.arc
-    const spin = -(theta + rest[1])
+    const spin = viewYaw - (theta + rest[1])
     return Math.atan2(Math.sin(spin), Math.cos(spin))
   }
 
@@ -49,8 +55,8 @@ export function ProductSlot({ spec, position, rest }: Props) {
     if (!editingThis || !selectedId) return null
     const layer = useDesignStore.getState().design.layers.find((l) => l.id === selectedId)
     return layer ? { spin: spinToFace(layer.x), key: selectedId } : null
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- spinToFace only depends on spec/rest
-  }, [editingThis, selectedId, spec, rest])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- spinToFace only depends on spec/rest/yaw
+  }, [editingThis, selectedId, spec, rest, viewYaw])
 
   // Turn to a spot picked on the wrap strip.
   const controls = useRef<SpringyApi | null>(null)
@@ -63,6 +69,27 @@ export function ProductSlot({ spec, position, rest }: Props) {
   const [hovered, setHovered] = useState(false)
   const bounce = useRef<Group>(null)
   const squash = useRef({ x: 0, v: 0 })
+
+  // Travel between the shelf and the workbench: a springy move with a hop (arc) on the way.
+  const place = useRef<Group>(null)
+  const travel = useRef({ pos: home.clone(), vel: new THREE.Vector3() })
+  useFrame((_, delta) => {
+    const g = place.current
+    if (!g) return
+    const t = travel.current
+    const target = editingThis ? stage : home
+    // Substepped in real time so the hop keeps pace with the camera flight even at low fps.
+    const steps = Math.ceil(Math.min(delta, 0.5) / (1 / 60))
+    const dt = Math.min(delta, 0.5) / Math.max(1, steps)
+    const acc = new THREE.Vector3()
+    for (let i = 0; i < steps; i++) {
+      acc.copy(target).sub(t.pos).multiplyScalar(70).addScaledVector(t.vel, -14)
+      t.vel.addScaledVector(acc, dt)
+      t.pos.addScaledVector(t.vel, dt)
+    }
+    const flat = Math.hypot(target.x - t.pos.x, target.z - t.pos.z)
+    g.position.set(t.pos.x, t.pos.y + Math.min(flat * 0.35, 3), t.pos.z)
+  })
 
   useFrame((_, delta) => {
     const g = bounce.current
@@ -96,12 +123,13 @@ export function ProductSlot({ spec, position, rest }: Props) {
   }
 
   return (
-    <group position={position}>
+    <group ref={place} position={home}>
+      <BlobShadow radius={cylinderSize(spec).radius} />
       <group ref={bounce}>
         {/* Lifted a hair so the idle bob never dips into the table */}
         <group position-y={height / 2 + 0.012}>
           <SpringyControls rest={rest} enabled={editingThis} face={face} apiRef={controls}>
-            <IdleFloat phase={position[0] * 3}>
+            <IdleFloat phase={home.x * 3}>
               <CylinderProduct spec={spec} bandProps={bandProps} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} />
             </IdleFloat>
           </SpringyControls>

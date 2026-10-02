@@ -1,39 +1,20 @@
-import { useMemo, useRef } from 'react'
+import { Suspense, useMemo, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { ContactShadows, Environment, Lightformer, RoundedBox } from '@react-three/drei'
+import { Environment, Lightformer } from '@react-three/drei'
+import * as THREE from 'three'
 import type { Scene as ThreeScene, WebGLRenderer } from 'three'
-import { PRODUCTS, type ProductSpec } from '../config/products'
+import { PRODUCTS } from '../config/products'
 import { log } from '../debug/log'
+import { Room } from '../room/Room'
+import { ATELIER } from '../room/rooms'
+import { useRoom } from '../room/useRoom'
 import { useDesignStore } from '../store/designStore'
+import { useUiStore } from '../store/uiStore'
 import { CameraRig, type Framing } from './CameraRig'
 import { cylinderSize } from './dimensions'
 import { ProductSlot } from './ProductSlot'
 
-/** Space between neighbouring products on the table, in scene units. */
-const GAP = 0.7
-const TABLE_DEPTH = 1.3
-
-type Placed = { spec: ProductSpec; x: number; width: number; height: number; rest: [number, number] }
-
-/** Line the products up along X, centered on the origin, bases at y = 0. */
-function layoutProducts(products: ProductSpec[]): { placed: Placed[]; span: number; tallest: number } {
-  const sized = products.map((spec) => ({ spec, ...cylinderSize(spec) }))
-  const span = sized.reduce((sum, p) => sum + p.width, 0) + GAP * (sized.length - 1)
-  let x = -span / 2
-  const placed = sized.map((p) => {
-    const item: Placed = {
-      spec: p.spec,
-      x: x + p.width / 2,
-      width: p.width,
-      height: p.height,
-      // Print center to the front; a mug turns a little so its handle peeks out on the right.
-      rest: [0.06, Math.PI / 2 - (p.spec.handle ? 0.8 : 0)],
-    }
-    x += p.width + GAP
-    return item
-  })
-  return { placed, span, tallest: Math.max(...sized.map((p) => p.height)) }
-}
+const ROOM = ATELIER
 
 type Props = {
   onReady?: () => void
@@ -43,36 +24,11 @@ type Props = {
 }
 
 export function Scene({ onReady, bottomInset = 0, leftInset = 0 }: Props) {
-  const view = useDesignStore((s) => s.view)
-  const productId = useDesignStore((s) => s.productId)
-  const { placed, span, tallest } = useMemo(() => layoutProducts(PRODUCTS), [])
-
-  const framing = useMemo<Framing>(() => {
-    const active = placed.find((p) => p.spec.id === productId)
-    if (view === 'edit' && active) {
-      return {
-        key: `edit:${active.spec.id}`,
-        center: [active.x, active.height / 2, 0],
-        width: active.width * 1.5,
-        height: active.height * 1.45,
-        insetBottom: bottomInset,
-        insetLeft: leftInset,
-      }
-    }
-    return {
-      key: 'shop',
-      center: [0, tallest * 0.45, 0],
-      width: span + 0.4,
-      height: tallest + 0.4,
-      insetBottom: bottomInset,
-    }
-  }, [view, productId, placed, span, tallest, bottomInset, leftInset])
-
   return (
     <Canvas
       className="scene"
       dpr={[1, 2]}
-      camera={{ position: [0, 1, 6], fov: 30 }}
+      camera={{ position: [40, 30, 40], fov: 30, near: 0.5, far: 400 }}
       gl={{ antialias: true }}
       onCreated={({ gl, scene }) => {
         logRenderer(gl)
@@ -80,8 +36,8 @@ export function Scene({ onReady, bottomInset = 0, leftInset = 0 }: Props) {
       }}
     >
       <color attach="background" args={['#f6efe6']} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[2, 3, 2]} intensity={1.1} />
+      <ambientLight intensity={0.55} />
+      <directionalLight position={[20, 40, 25]} intensity={1.1} />
 
       {/* Soft studio env built from light cards, so nothing is fetched at runtime */}
       <Environment resolution={256}>
@@ -91,20 +47,62 @@ export function Scene({ onReady, bottomInset = 0, leftInset = 0 }: Props) {
         <Lightformer form="circle" intensity={1.5} position={[0, 1, -4]} scale={2} />
       </Environment>
 
-      <CameraRig framing={framing} zoomable={view === 'edit'} />
-
-      {placed.map((p) => (
-        <ProductSlot key={p.spec.id} spec={p.spec} position={[p.x, 0, 0]} rest={p.rest} />
-      ))}
-
-      {/* Placeholder table until the baked Blender room lands (Phase 3) */}
-      <RoundedBox args={[span + 1.2, 0.08, TABLE_DEPTH]} radius={0.03} position-y={-0.04}>
-        <meshStandardMaterial color="#e2c29f" roughness={0.85} />
-      </RoundedBox>
-      <ContactShadows position-y={0.001} scale={[span + 1.2, TABLE_DEPTH]} opacity={0.4} blur={2.2} far={1.5} />
-
-      <FirstFrame onReady={onReady} />
+      <Suspense fallback={null}>
+        <Shop bottomInset={bottomInset} leftInset={leftInset} />
+        {/* Inside Suspense: the loading screen waits for the room to be drawn. */}
+        <FirstFrame onReady={onReady} />
+      </Suspense>
     </Canvas>
+  )
+}
+
+/** The room with its products, and the camera framing for where the visitor is. */
+function Shop({ bottomInset, leftInset }: { bottomInset: number; leftInset: number }) {
+  const loaded = useRoom(ROOM)
+  const view = useDesignStore((s) => s.view)
+  const productId = useDesignStore((s) => s.productId)
+  const zone = useUiStore((s) => s.zone)
+  const { markers, viewDir, viewYaw } = loaded
+  const dir = viewDir.toArray() as [number, number, number]
+  const stage = markers.get('workbench') ?? new THREE.Vector3()
+
+  const framing = useMemo<Framing>(() => {
+    const active = PRODUCTS.find((p) => p.id === productId)
+    if (view === 'edit' && active) {
+      const { width, height } = cylinderSize(active)
+      return {
+        key: `edit:${active.id}`,
+        center: [stage.x, stage.y + height / 2, stage.z],
+        width: width * 1.5,
+        height: height * 1.45,
+        dir,
+        insetBottom: bottomInset,
+        insetLeft: leftInset,
+      }
+    }
+    const z = ROOM.zones.find((x) => x.id === zone)
+    const zc = z && markers.get(z.marker)
+    if (z && zc) {
+      const center = zc.clone().add(new THREE.Vector3(...(z.shift ?? [0, 0, 0])))
+      return { key: `zone:${z.id}`, center: center.toArray() as [number, number, number], width: z.size[0], height: z.size[1], dir: z.view, insetBottom: bottomInset }
+    }
+    const target = markers.get('room_target') ?? new THREE.Vector3(0, 8, 0)
+    return { key: 'room', center: target.toArray() as [number, number, number], width: 46, height: 30, dir, insetBottom: bottomInset }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dir/stage derive from `loaded`
+  }, [view, productId, zone, loaded, bottomInset, leftInset])
+
+  return (
+    <>
+      <CameraRig framing={framing} zoomable={view === 'edit'} />
+      <Room room={ROOM} loaded={loaded} />
+      {PRODUCTS.map((spec) => {
+        const home = markers.get(ROOM.slots[spec.id])
+        if (!home) return null
+        // Print center toward the camera; a mug turns a little so its handle peeks out.
+        const rest: [number, number] = [0.06, viewYaw + Math.PI / 2 - (spec.handle ? 0.8 : 0)]
+        return <ProductSlot key={spec.id} spec={spec} home={home} stage={stage} rest={rest} viewYaw={viewYaw} />
+      })}
+    </>
   )
 }
 

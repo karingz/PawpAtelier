@@ -1,9 +1,13 @@
 import { create } from 'zustand'
+import type { ZoneId } from '../config/products'
 
 /** Editor content categories (the dock's buttons / the flat editor's tabs). */
 export type Tab = 'photo' | 'effects' | 'stickers' | 'text' | 'background' | 'surprise'
 
 type UiState = {
+  /** Shop view level: null = the whole room, else the zone the camera is at. */
+  zone: ZoneId | null
+  setZone: (zone: ZoneId | null) => void
   /** Open drawer over the 3D scene, or null. */
   drawer: Tab | null
   /** The full 2D editor instead of editing on the 3D product. */
@@ -23,6 +27,8 @@ type UiState = {
 
 /** Screen/UI state that isn't part of the design (not in undo history). */
 export const useUiStore = create<UiState>()((set) => ({
+  zone: null,
+  setZone: (zone) => set({ zone }),
   drawer: null,
   flat: false,
   editingTextId: null,

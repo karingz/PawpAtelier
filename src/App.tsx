@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { PRODUCTS, getProduct } from './config/products'
+import { ATELIER } from './room/rooms'
 import { EditDock, ModeSwitch } from './editor/EditDock'
 import { Editor } from './editor/Editor'
 import { PrintStage } from './editor/PrintCanvas'
@@ -15,7 +16,6 @@ import { layersWithDraft, useDesignStore } from './store/designStore'
 export default function App() {
   const view = useDesignStore((s) => s.view)
   const spec = getProduct(useDesignStore((s) => s.productId))
-  const backToShop = useDesignStore((s) => s.backToShop)
   const [ready, setReady] = useState(false)
   const viewerRef = useRef<HTMLElement>(null)
   const shopRef = useRef<HTMLElement>(null)
@@ -36,11 +36,7 @@ export default function App() {
   return (
     <div className={`app app--${view}${docked ? ' app--docked' : ''}`}>
       <header className="app__header">
-        {view === 'edit' && (
-          <button className="btn btn--back" onClick={backToShop}>
-            ← Shop
-          </button>
-        )}
+        <BackButton />
         <h1>Pawp Atelier</h1>
         {view === 'edit' && <span className="app__product">{spec.name}</span>}
         {view === 'edit' && <ModeSwitch />}
@@ -75,19 +71,81 @@ export default function App() {
   )
 }
 
+/** Back one level: product → its zone, zone → the whole room. */
+function BackButton() {
+  const view = useDesignStore((s) => s.view)
+  const productId = useDesignStore((s) => s.productId)
+  const zone = useUiStore((s) => s.zone)
+  const { backToShop } = useDesignStore.getState()
+  const { setZone } = useUiStore.getState()
+  if (view === 'edit') {
+    const z = ATELIER.zones.find((x) => x.id === getProduct(productId).zone)
+    return (
+      <button
+        className="btn btn--back"
+        onClick={() => {
+          setZone(z?.id ?? null)
+          backToShop()
+        }}
+      >
+        ← {z?.label ?? 'Shop'}
+      </button>
+    )
+  }
+  if (zone) {
+    return (
+      <button className="btn btn--back" onClick={() => setZone(null)}>
+        ← Shop
+      </button>
+    )
+  }
+  return null
+}
+
+/** Room level: pick a zone. Zone level: that zone's products (and what's coming soon). */
 function ShopSheet({ ref }: { ref: RefObject<HTMLElement | null> }) {
   const openProduct = useDesignStore((s) => s.openProduct)
+  const zone = useUiStore((s) => s.zone)
+  const setZone = useUiStore((s) => s.setZone)
+  const current = ATELIER.zones.find((z) => z.id === zone)
+
+  if (!current) {
+    return (
+      <section ref={ref} className="app__shop">
+        <h2>Welcome in! What are we making?</h2>
+        <div className="product-list">
+          {ATELIER.zones.map((z) => (
+            <button key={z.id} className="product-card" onClick={() => setZone(z.id)}>
+              <span className="product-card__name">{z.label}</span>
+              <span className="product-card__meta">
+                {PRODUCTS.filter((p) => p.zone === z.id).length || 'Coming soon'}
+                {PRODUCTS.some((p) => p.zone === z.id) ? ' to choose from' : ''}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+    )
+  }
+  const products = PRODUCTS.filter((p) => p.zone === current.id)
+  const soon = ATELIER.placeholders.filter((p) => p.zone === current.id)
   return (
     <section ref={ref} className="app__shop">
-      <h2>What are we making?</h2>
+      <h2>{current.label}</h2>
       <div className="product-list">
-        {PRODUCTS.map((p) => (
+        {products.map((p) => (
           <button key={p.id} className="product-card" onClick={() => openProduct(p.id)}>
             <span className="product-card__name">{p.name}</span>
             <span className="product-card__meta">
               {p.print.widthIn} × {p.print.heightIn} in wrap
             </span>
           </button>
+        ))}
+        {soon.map((p) => (
+          <div key={p.marker} className="product-card product-card--soon" aria-disabled>
+            <span className="product-card__name">{p.label}</span>
+            <span className="product-card__meta">Coming soon</span>
+          </div>
         ))}
       </div>
     </section>

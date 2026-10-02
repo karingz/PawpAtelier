@@ -1362,3 +1362,14 @@ button {
   font-size: 0.7rem;
   font-weight: 700;
 }
+
+.product-card--soon {
+  opacity: 0.6;
+  cursor: default;
+  border-style: dashed;
+}
+
+.product-card--soon:hover {
+  transform: none;
+  border-color: var(--line);
+}

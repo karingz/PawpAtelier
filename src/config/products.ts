@@ -3,11 +3,15 @@
 
 export const DESIGN_UNITS_PER_INCH = 100
 
+/** Where a product lives in the shop (a zone of the room). */
+export type ZoneId = 'drinkware' | 'apparel' | 'accessories'
+
 /** A round product printed with a flat wrap (mug, tumbler). */
 export type CylinderSpec = {
   id: string
   kind: 'cylinder'
   name: string
+  zone: ZoneId
   /** Print wrap size in inches (flat template). */
   print: { widthIn: number; heightIn: number }
   /** Physical body size in inches. */
@@ -27,6 +31,7 @@ export const MUG_11OZ: CylinderSpec = {
   id: 'mug-11oz',
   kind: 'cylinder',
   name: 'Classic Mug 11oz',
+  zone: 'drinkware',
   print: { widthIn: 8.5, heightIn: 3.5 },
   body: { diameterIn: 3.25, heightIn: 3.8 },
   handle: true,
@@ -40,6 +45,7 @@ export const TUMBLER_20OZ: CylinderSpec = {
   id: 'tumbler-20oz',
   kind: 'cylinder',
   name: 'Skinny Tumbler 20oz',
+  zone: 'drinkware',
   print: { widthIn: 8.9, heightIn: 7.4 },
   body: { diameterIn: 2.9, heightIn: 8.0 },
   printOffsetIn: -0.15,

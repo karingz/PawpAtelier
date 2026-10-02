@@ -11,6 +11,8 @@ export type Framing = {
   center: [number, number, number]
   width: number
   height: number
+  /** Direction from the subject toward the camera (default: straight on, slightly above). */
+  dir?: [number, number, number]
   /** Fractions (0..1) of the view covered by UI at the bottom / left; the framing avoids them. */
   insetBottom?: number
   insetLeft?: number
@@ -26,11 +28,15 @@ function poseFor(framing: Framing, fovDeg: number, aspect: number) {
   const insetX = THREE.MathUtils.clamp(framing.insetLeft ?? 0, 0, 0.6)
   const distance =
     Math.max(framing.height / 2 / (halfV * (1 - inset)), framing.width / 2 / (halfV * aspect * (1 - insetX))) * MARGIN
-  // Aim below / left of the subject so it sits centered in the uncovered part of the view.
+  // Aim below / left of the subject so it sits centered in the uncovered part of the view
+  // (offsets along the camera's own up / right axes).
+  const dir = framing.dir ? new THREE.Vector3(...framing.dir).normalize() : VIEW_DIR
+  const right = new THREE.Vector3(0, 1, 0).cross(dir).normalize()
+  const up = dir.clone().cross(right).normalize()
   const look = new THREE.Vector3(...framing.center)
-  look.y -= inset * distance * halfV
-  look.x -= insetX * distance * halfV * aspect
-  return { look, pos: look.clone().addScaledVector(VIEW_DIR, distance) }
+  look.addScaledVector(up, -inset * distance * halfV)
+  look.addScaledVector(right, -insetX * distance * halfV * aspect)
+  return { look, pos: look.clone().addScaledVector(dir, distance) }
 }
 
 /** Camera distance multiplier limits for wheel / pinch zoom (1 = the framing). */
