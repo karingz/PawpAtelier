@@ -65,6 +65,8 @@ export function SpringyControls({
     spin: { x: 0, v: 0 },
     tilt: { x: 0, v: 0 },
     faceTarget: null as number | null,
+    /** The rest spin as shown: eases to a new `rest` (e.g. a tee turned to print on its back). */
+    restSpin: rest[1],
   })
 
   const turnTo = (target: number) => {
@@ -154,6 +156,8 @@ export function SpringyControls({
   useFrame((_, delta) => {
     const s = state.current
     const dt = Math.min(delta, 1 / 30)
+    const restGap = Math.atan2(Math.sin(rest[1] - s.restSpin), Math.cos(rest[1] - s.restSpin))
+    s.restSpin = Math.abs(restGap) < 1e-4 ? rest[1] : s.restSpin + restGap * Math.min(1, dt * 6)
 
     if (s.dragging) {
       track(s.spin, rubberBand(s.rawSpin, azimuth), dt)
@@ -174,7 +178,7 @@ export function SpringyControls({
     }
 
     if (group.current) {
-      group.current.rotation.set(rest[0] + s.tilt.x, rest[1] + s.spin.x, 0)
+      group.current.rotation.set(rest[0] + s.tilt.x, s.restSpin + s.spin.x, 0)
     }
   })
 

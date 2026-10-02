@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type Konva from 'konva'
 import { Circle, Group, Image as KImage, Layer as KLayer, Line, Rect, Stage, Text, Transformer } from 'react-konva'
-import { DESIGN_UNITS_PER_INCH, designSize, type ProductSpec } from '../config/products'
+import { DESIGN_UNITS_PER_INCH, designSize, printBase, type ProductSpec } from '../config/products'
+import { productOptions, useProductOptions } from '../store/optionsStore'
 import { getFont, loadFontFor } from '../content/fonts'
 import { getPalette, patternTile, TILE } from '../content/patterns'
 import { printNodeName, registerPrintStage } from './layerGeometry'
@@ -66,8 +67,10 @@ function useRenderData(spec: ProductSpec) {
   const lookDraft = useDesignStore((s) => s.lookDraft)
   const looks = useLookImages(layers, lookDraft, lasso?.layerId)
   const cropPhoto = cropDraft && selected?.kind === 'photo' && images.get(selected.src) ? selected : null
+  const options = useProductOptions(spec)
+  const base = useMemo(() => printBase(spec, options), [spec, options])
   return {
-    content: { background, layers, design, spec, images, looks: looks.images, fontsVersion, lasso, cropPhoto, cropDraft },
+    content: { background, layers, design, spec, base, images, looks: looks.images, fontsVersion, lasso, cropPhoto, cropDraft },
     ready: imagesReady && looks.ready,
   }
 }
@@ -110,6 +113,7 @@ export function PrintStage({ spec }: Props) {
 
     const publish = () => {
       if (!complete.current) return
+      ctx.clearRect(0, 0, texture.width, texture.height)
       ctx.drawImage(layer.getCanvas()._canvas, 0, 0, texture.width, texture.height)
       markPrintDirty(spec.id)
     }
@@ -414,11 +418,13 @@ export function PrintCanvas({ spec }: Props) {
           </div>
         )}
       </div>
-      <div className="print-canvas__labels">
-        <span>← {spec.handle ? 'handle side' : 'back seam'}</span>
-        <span>front</span>
-        <span>{spec.handle ? 'handle side' : 'back seam'} →</span>
-      </div>
+      {spec.kind === 'cylinder' && (
+        <div className="print-canvas__labels">
+          <span>← {spec.handle ? 'handle side' : 'back seam'}</span>
+          <span>front</span>
+          <span>{spec.handle ? 'handle side' : 'back seam'} →</span>
+        </div>
+      )}
 
     </div>
   )
@@ -429,6 +435,8 @@ type ContentProps = {
   layers: Layer[]
   design: { width: number; height: number }
   spec: ProductSpec
+  /** The blank behind the print, and whether empty print areas stay see-through. */
+  base: { color: string; transparent: boolean }
   images: Map<string, HTMLImageElement>
   /** Rendered looks (filters/effects) by photo layer id. */
   looks: Map<string, ImageBitmap>
@@ -441,10 +449,12 @@ type ContentProps = {
 }
 
 /** Background + layers, exactly as printed. Rendered by both the editing view and the print. */
-function DesignContent({ background, layers, design, spec, images, looks, fontsVersion, lasso, cropPhoto, cropDraft, handlersFor }: ContentProps) {
+function DesignContent({ background, layers, design, base, images, looks, fontsVersion, lasso, cropPhoto, cropDraft, handlersFor }: ContentProps) {
   return (
     <>
-      <BackgroundNode background={background} width={design.width} height={design.height} baseColor={spec.color} />
+      {/* Editing view of a see-through print (tee, clear case): show the blank behind it. */}
+      {handlersFor && base.transparent && <Rect width={design.width} height={design.height} fill={base.color} listening={false} />}
+      <BackgroundNode background={background} width={design.width} height={design.height} baseColor={base.transparent ? null : base.color} />
       {layers.map((layer) => {
         if (cropPhoto && cropDraft && layer.id === cropPhoto.id) {
           // Live crop preview: the full image clipped to the draft box.
@@ -517,9 +527,12 @@ function printTextureCanvas(spec: ProductSpec) {
   const canvas = document.createElement('canvas')
   canvas.width = spec.previewTextureWidth
   canvas.height = Math.round((spec.previewTextureWidth * height) / width)
-  const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = spec.color
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  const base = printBase(spec, productOptions(spec))
+  if (!base.transparent) {
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = base.color
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+  }
   setPrintCanvas(spec.id, canvas)
   return canvas
 }
@@ -609,7 +622,8 @@ function BackgroundNode({
   background: Background
   width: number
   height: number
-  baseColor: string
+  /** Null: a see-through print, nothing behind the layers. */
+  baseColor: string | null
 }) {
   const common = { name: 'background', width, height }
   if (background.kind === 'solid') return <Rect {...common} fill={background.color} />
@@ -636,7 +650,7 @@ function BackgroundNode({
       />
     )
   }
-  return <Rect {...common} fill={baseColor} />
+  return baseColor ? <Rect {...common} fill={baseColor} /> : null
 }
 
 type NodeHandlers = {

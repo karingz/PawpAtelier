@@ -1,5 +1,5 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
-import { designSize, type ProductSpec } from '../config/products'
+import { designSize, type CylinderSpec } from '../config/products'
 import { layersWithDraft, useDesignStore } from '../store/designStore'
 import { useUiStore } from '../store/uiStore'
 import { layerBox } from './layerGeometry'
@@ -13,7 +13,7 @@ const WIDTH = 340
  * selected layer is outlined, and tapping a spot turns the product to it. The ends are where the
  * handle (mug) or back seam (tumbler) is.
  */
-export function WrapStrip({ spec }: { spec: ProductSpec }) {
+export function WrapStrip({ spec }: { spec: CylinderSpec }) {
   const design = designSize(spec)
   const height = Math.round((WIDTH * design.height) / design.width)
   const canvasRef = useRef<HTMLCanvasElement>(null)

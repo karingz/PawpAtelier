@@ -2,6 +2,7 @@
 
 import { PRODUCTS, type ProductSpec, type ZoneId } from '../config/products'
 import { useDesignStore } from '../store/designStore'
+import { useOptionsStore } from '../store/optionsStore'
 import { useUiStore } from '../store/uiStore'
 import { useClerkStore, type ClerkLine } from './clerkStore'
 
@@ -14,42 +15,45 @@ export function greeting(): ClerkLine[] {
   return [
     { text: "Hi, welcome to Pawp Atelier! I'm Leah, I look after the counter here. 🐾" },
     {
-      text: 'Everything here gets your pet on it. Tap a shelf to look around: mugs and tumblers are ready today!',
+      text: 'Everything here gets your pet on it: mugs, tumblers, tees and phone cases. Tap anything to look closer!',
       choices: [{ label: 'Show me the mugs', run: () => ui().setZone('drinkware'), primary: true }, { label: "I'll look around" }],
     },
   ]
 }
 
+const ZONE_INTROS: Record<ZoneId, string> = {
+  drinkware:
+    'Mugs and tumblers! The mug wraps your pet all the way around, and the tumbler is tall enough for a whole-body photo. Which one?',
+  apparel: 'Our classic tee: your pet on the front or the back, in white, black, grey or beige. Want to try it?',
+  accessories:
+    "Phone cases for the latest iPhone and Galaxy, soft matte or clear (clear ones show off your phone's color). Which phone?",
+}
+
 export function zoneIntro(zone: ZoneId): ClerkLine[] {
   const products = PRODUCTS.filter((p) => p.zone === zone)
-  if (zone === 'drinkware') {
-    return [
-      {
-        text: 'Mugs and tumblers! The mug wraps your pet all the way around, and the tumbler is tall enough for a whole-body photo. Which one?',
-        choices: [
-          ...products.map((p) => ({ label: `${p.name} · ${formatPrice(p.priceUsd)}`, run: () => design().openProduct(p.id) })),
-          { label: 'Just looking' },
-        ],
-      },
-    ]
-  }
-  const soon =
-    zone === 'apparel'
-      ? 'T-shirts are almost ready: your pet on the front or the back, in white, black, grey or beige. Check back soon!'
-      : "Phone cases for the latest iPhone and Galaxy are on their way: soft matte ones, and clear silicone ones that show off your phone's color. Soon!"
   return [
     {
-      text: soon,
-      choices: [{ label: 'Okay!' }, { label: 'Show me the mugs', run: () => ui().setZone('drinkware'), primary: true }],
+      text: ZONE_INTROS[zone],
+      choices: [
+        ...products.map((p) => ({ label: `${p.name} · ${formatPrice(p.priceUsd)}`, run: () => design().openProduct(p.id) })),
+        { label: 'Just looking' },
+      ],
     },
   ]
 }
 
-/** When a product goes to the workbench: (its options, from R3 on, then) how customizing works. */
+/** When a product goes to the workbench: its options (tee color, case finish, …), then how customizing works. */
 export function productIntro(spec: ProductSpec): ClerkLine[] {
   const thing = spec.noun
+  const { choose } = useOptionsStore.getState()
+  const options: ClerkLine[] = (spec.options ?? []).map((o) => ({
+    text: o.question,
+    choices: o.choices.map((c) => ({ label: c.label, run: () => choose(spec.id, o.id, c.id) })),
+  }))
   return [
     { text: `Great pick! Let's make this ${thing} yours.` },
+    ...options,
+    ...(options.length ? [{ text: `You can change that anytime: tap “${spec.kind === 'tee' ? 'Shirt' : 'Case'}” in the toolbar.` }] : []),
     {
       text: 'First, your pet: tap Photo and choose a picture. The photo tools can even cut out the background.',
       choices: [{ label: 'Add a photo', run: () => ui().openDrawer('photo'), primary: true }, { label: 'Next tip' }],

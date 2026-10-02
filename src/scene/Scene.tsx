@@ -12,7 +12,7 @@ import { useRoom } from '../room/useRoom'
 import { useDesignStore } from '../store/designStore'
 import { useUiStore } from '../store/uiStore'
 import { CameraRig, type Framing } from './CameraRig'
-import { cylinderSize } from './dimensions'
+import { productSize } from './dimensions'
 import { ProductSlot } from './ProductSlot'
 
 const ROOM = ATELIER
@@ -80,7 +80,7 @@ function Shop({ bottomInset, leftInset }: { bottomInset: number; leftInset: numb
       return { key: 'counter', center: [c.x, desk.y + 1.8, c.z], width: 10, height: 7, dir, insetBottom: bottomInset }
     }
     if (view === 'edit' && active) {
-      const { width, height } = cylinderSize(active)
+      const { width, height } = productSize(active)
       return {
         key: `edit:${active.id}`,
         center: [stage.x, stage.y + height / 2, stage.z],
@@ -109,11 +109,10 @@ function Shop({ bottomInset, leftInset }: { bottomInset: number; leftInset: numb
       {/* Her body lies along the counter (so her long back shows); her head turns to the visitor. */}
       {clerk && <ClerkLeah at={clerk} yaw={viewYaw - 0.75} />}
       {PRODUCTS.map((spec) => {
-        const home = markers.get(ROOM.slots[spec.id])
+        const slot = ROOM.slots[spec.id]
+        const home = slot && markers.get(slot.marker)
         if (!home) return null
-        // Print center toward the camera; a mug turns a little so its handle peeks out.
-        const rest: [number, number] = [0.06, viewYaw + Math.PI / 2 - (spec.handle ? 0.8 : 0)]
-        return <ProductSlot key={spec.id} spec={spec} home={home} stage={stage} rest={rest} viewYaw={viewYaw} />
+        return <ProductSlot key={spec.id} spec={spec} home={home} stage={stage} viewYaw={viewYaw} homeYaw={slot.yaw} homeShadow={!slot.hangs} />
       })}
     </>
   )

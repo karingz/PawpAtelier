@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
-import type { CylinderSpec } from '../config/products'
+import type { ProductSpec } from '../config/products'
 import { boxContains, boxOutline, layerAt, layerBox, normalizeDegrees, transformPatch } from '../editor/layerGeometry'
 import { selectionBus } from '../editor/selectionBus'
 import { viewBus } from '../editor/viewBus'
@@ -9,7 +9,7 @@ import { designSize } from '../config/products'
 import { layersWithDraft, useDesignStore, type Layer } from '../store/designStore'
 import { useUiStore } from '../store/uiStore'
 import { gesture } from './gestures'
-import { cylinderBand, designToBandLocal, uvToDesign } from './surface'
+import type { PrintSurface } from './surface'
 
 /** Pointer travel (px) below which a press counts as a tap. */
 const TAP_SLOP = 6
@@ -35,9 +35,9 @@ function noteTap(layer: Layer | undefined) {
  * - any other drag (unselected layers, empty area, background) turns the product, so a big
  *   photo covering the front doesn't stop you from turning the mug;
  * - every frame, publish where the selected layer is on screen (for the outline + toolbar).
- * Returns props for the band mesh.
+ * Returns props for the print mesh.
  */
-export function useSurfaceEditing(spec: CylinderSpec, active: boolean) {
+export function useSurfaceEditing(spec: ProductSpec, surface: PrintSurface, active: boolean) {
   const band = useRef<THREE.Mesh>(null)
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
@@ -58,14 +58,14 @@ export function useSurfaceEditing(spec: CylinderSpec, active: boolean) {
     const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1)
     raycaster.setFromCamera(ndc, camera)
     const hit = raycaster.intersectObject(mesh, false)[0]
-    return hit?.uv ? uvToDesign(spec, hit.uv) : null
+    return hit?.uv ? surface.uvToDesign(hit.uv) : null
   }
 
   const onPointerDown = (e: ThreeEvent<PointerEvent>) => {
     const st = useDesignStore.getState()
     // A second finger while a layer is held belongs to that gesture (see below).
     if (!active || gesture.layerDrag || e.nativeEvent.button !== 0 || gesture.pinching || st.cropDraft || st.lasso || !e.uv) return
-    const p = uvToDesign(spec, e.uv)
+    const p = surface.uvToDesign(e.uv)
     const start = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }
     // The selected layer wins even when something is on top of it; otherwise the topmost.
     const selected = st.design.layers.find((l) => l.id === st.selectedId)
@@ -144,11 +144,11 @@ export function useSurfaceEditing(spec: CylinderSpec, active: boolean) {
   const camLocal = useRef(new THREE.Vector3())
   useFrame(() => {
     const mesh = band.current
-    if (active && mesh) {
+    const b = surface.wrap
+    if (active && mesh && b) {
       // The camera's direction in the band's own frame gives the front angle directly
       // (independent of spin, idle bob or tilt).
       mesh.worldToLocal(camLocal.current.copy(camera.position))
-      const b = cylinderBand(spec)
       const W = designSize(spec).width
       const phi = Math.atan2(camLocal.current.x, camLocal.current.z)
       const along = (((phi - b.start) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)
@@ -165,7 +165,7 @@ export function useSurfaceEditing(spec: CylinderSpec, active: boolean) {
     }
     const box = layerBox(spec.id, sel)
     const project = (x: number, y: number): [number, number] => {
-      designToBandLocal(spec, x, y, v.current)
+      surface.toLocal(x, y, v.current)
       mesh.localToWorld(v.current).project(camera)
       return [((v.current.x + 1) / 2) * size.width, ((1 - v.current.y) / 2) * size.height]
     }
@@ -173,7 +173,7 @@ export function useSurfaceEditing(spec: CylinderSpec, active: boolean) {
     const corners = [0, 12, 24, 36].map((i) => outline[i])
     const [cx, cy] = project(box.cx, box.cy)
     // Facing: the surface normal at the layer's center points toward the camera.
-    designToBandLocal(spec, box.cx, box.cy, v.current, n.current)
+    surface.toLocal(box.cx, box.cy, v.current, n.current)
     mesh.localToWorld(v.current)
     normalMatrix.current.getNormalMatrix(mesh.matrixWorld)
     n.current.applyMatrix3(normalMatrix.current).normalize()

@@ -3,6 +3,7 @@ import { PRODUCTS, getProduct } from './config/products'
 import { ATELIER } from './room/rooms'
 import { ClerkDialog } from './clerk/ClerkDialog'
 import { OrderSheet } from './clerk/OrderSheet'
+import { formatPrice } from './clerk/script'
 import { useClerkDirector } from './clerk/useClerkDirector'
 import { EditDock, ModeSwitch } from './editor/EditDock'
 import { Editor } from './editor/Editor'
@@ -168,7 +169,7 @@ function ShopSheet({ ref }: { ref: RefObject<HTMLElement | null> }) {
           <button key={p.id} className="product-card" onClick={() => openProduct(p.id)}>
             <span className="product-card__name">{p.name}</span>
             <span className="product-card__meta">
-              {p.print.widthIn} × {p.print.heightIn} in wrap
+              {formatPrice(p.priceUsd)} · {p.kind === 'cylinder' ? 'wrap' : 'print'} {p.print.widthIn} × {p.print.heightIn} in
             </span>
           </button>
         ))}

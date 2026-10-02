@@ -3,7 +3,7 @@ import type { ProductSpec } from '../config/products'
 import { selectedLayer, useDesignStore } from '../store/designStore'
 import { useUiStore } from '../store/uiStore'
 import { TabPanel } from './Editor'
-import { TABS } from './tabs'
+import { tabsFor } from './tabs'
 import { WrapStrip } from './WrapStrip'
 import { askLeah } from '../clerk/script'
 
@@ -44,7 +44,7 @@ export function EditDock({ spec, dockRef }: { spec: ProductSpec; dockRef: RefObj
     }
   }, [dockRef, drawer, closeDrawer])
 
-  const current = TABS.find((t) => t.id === drawer)
+  const current = tabsFor(spec).find((t) => t.id === drawer)
   return (
     <>
       <HistoryButtons />
@@ -62,9 +62,10 @@ export function EditDock({ spec, dockRef }: { spec: ProductSpec; dockRef: RefObj
             </div>
           </section>
         )}
-        {!drawer && <WrapStrip spec={spec} />}
+        {/* A wrap's mini-map; a flat print is all in view anyway. */}
+        {!drawer && spec.kind === 'cylinder' && <WrapStrip spec={spec} />}
         <nav className="category-bar" aria-label="Edit">
-          {TABS.map((t) => (
+          {tabsFor(spec).map((t) => (
             <button
               key={t.id}
               className={`category-bar__item${drawer === t.id ? ' category-bar__item--active' : ''}`}

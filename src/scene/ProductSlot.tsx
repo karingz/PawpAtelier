@@ -5,12 +5,15 @@ import type { Group } from 'three'
 import { BlobShadow } from '../room/Room'
 import { designSize, type ProductSpec } from '../config/products'
 import { useDesignStore } from '../store/designStore'
+import { useProductOptions } from '../store/optionsStore'
+import { CaseProduct } from './CaseProduct'
 import { CylinderProduct } from './CylinderProduct'
-import { cylinderSize } from './dimensions'
+import { productSize } from './dimensions'
 import { IdleFloat } from './IdleFloat'
 import { SpringyControls, type SpringyApi } from './SpringyControls'
 import { useUiStore } from '../store/uiStore'
-import { cylinderBand } from './surface'
+import { printSurface } from './surface'
+import { TeeProduct } from './TeeProduct'
 import { useSurfaceEditing } from './useSurfaceEditing'
 
 type Props = {
@@ -19,20 +22,22 @@ type Props = {
   home: THREE.Vector3
   /** Where it goes to be customized (the workbench). */
   stage: THREE.Vector3
-  /** Resting rotation [tilt, spin]; spin chosen so the print's center faces the camera. */
-  rest: [number, number]
   /** Yaw of the camera's viewing direction (radians): "facing the camera" means this angle. */
   viewYaw: number
+  /** At home, face this way instead of the camera (e.g. a tee hanging flat on the wall). */
+  homeYaw?: number
+  /** Whether it sits on something at home (a contact shadow), or hangs. */
+  homeShadow?: boolean
 }
 
 /** Pointer travel (px) beyond which a press counts as a drag, not a tap. */
 const TAP_SLOP = 6
 
 /**
- * One product on the table: squashes and hops on hover, pops when tapped, and is
+ * One product in the room: squashes and hops on hover, pops when tapped, and is
  * drag-turnable only while it is the one being edited.
  */
-export function ProductSlot({ spec, home, stage, rest, viewYaw }: Props) {
+export function ProductSlot({ spec, home, stage, viewYaw, homeYaw, homeShadow = true }: Props) {
   const view = useDesignStore((s) => s.view)
   const activeId = useDesignStore((s) => s.productId)
   const openProduct = useDesignStore((s) => s.openProduct)
@@ -40,14 +45,22 @@ export function ProductSlot({ spec, home, stage, rest, viewYaw }: Props) {
   const editingThis = view === 'edit' && activeId === spec.id
   // At the counter it can still be turned around, but the design isn't editable there.
   const atCounter = useUiStore((s) => s.atCounter)
-  const { height } = cylinderSize(spec)
-  const bandProps = useSurfaceEditing(spec, editingThis && !atCounter)
+  const { height, radius } = productSize(spec)
+  const options = useProductOptions(spec)
+  const surface = useMemo(() => printSurface(spec, options), [spec, options])
+  const bandProps = useSurfaceEditing(spec, surface, editingThis && !atCounter)
 
-  // A point at band angle θ faces the camera when θ + rest spin + spin ≡ the camera's yaw.
+  // Resting pose: the print's middle toward the camera (a mug turns a little so its handle
+  // peeks out); round things tilt back a touch, a phone case leans like it's on a stand.
+  const rest = useMemo<[number, number]>(() => {
+    const tilt = spec.kind === 'cylinder' ? 0.06 : spec.kind === 'case' ? -0.12 : 0
+    const handle = spec.kind === 'cylinder' && spec.handle ? 0.8 : 0
+    return [tilt, viewYaw - surface.angleAt(designSize(spec).width / 2) - handle]
+  }, [spec, surface, viewYaw])
+
+  // A point at print angle θ faces the camera when θ + rest spin + spin ≡ the camera's yaw.
   const spinToFace = (x: number) => {
-    const band = cylinderBand(spec)
-    const theta = band.start + (x / designSize(spec).width) * band.arc
-    const spin = viewYaw - (theta + rest[1])
+    const spin = viewYaw - (surface.angleAt(x) + rest[1])
     return Math.atan2(Math.sin(spin), Math.cos(spin))
   }
 
@@ -57,8 +70,8 @@ export function ProductSlot({ spec, home, stage, rest, viewYaw }: Props) {
     if (!editingThis || !selectedId) return null
     const layer = useDesignStore.getState().design.layers.find((l) => l.id === selectedId)
     return layer ? { spin: spinToFace(layer.x), key: selectedId } : null
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- spinToFace only depends on spec/rest/yaw
-  }, [editingThis, selectedId, spec, rest, viewYaw])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- spinToFace only depends on surface/rest/yaw
+  }, [editingThis, selectedId, surface, rest, viewYaw])
 
   // Turn to a spot picked on the wrap strip.
   const controls = useRef<SpringyApi | null>(null)
@@ -73,13 +86,18 @@ export function ProductSlot({ spec, home, stage, rest, viewYaw }: Props) {
   const squash = useRef({ x: 0, v: 0 })
 
   // Travel between the shelf and the workbench: a springy move with a hop (arc) on the way.
+  // At home it may face its wall instead of the camera; it turns to the camera as it travels.
   const place = useRef<Group>(null)
-  const travel = useRef({ pos: home.clone(), vel: new THREE.Vector3() })
+  const turn = useRef<Group>(null)
+  const homeTurn = homeYaw === undefined ? 0 : Math.atan2(Math.sin(homeYaw - viewYaw), Math.cos(homeYaw - viewYaw))
+  const travel = useRef({ pos: home.clone(), vel: new THREE.Vector3(), yaw: editingThis ? 0 : homeTurn })
   useFrame((_, delta) => {
     const g = place.current
     if (!g) return
     const t = travel.current
     const target = editingThis ? stage : home
+    t.yaw += ((editingThis ? 0 : homeTurn) - t.yaw) * Math.min(1, delta * 5)
+    if (turn.current) turn.current.rotation.y = t.yaw
     // Substepped in real time so the hop keeps pace with the camera flight even at low fps.
     const steps = Math.ceil(Math.min(delta, 0.5) / (1 / 60))
     const dt = Math.min(delta, 0.5) / Math.max(1, steps)
@@ -126,13 +144,21 @@ export function ProductSlot({ spec, home, stage, rest, viewYaw }: Props) {
 
   return (
     <group ref={place} position={home}>
-      <BlobShadow radius={cylinderSize(spec).radius} />
+      {(homeShadow || editingThis) && <BlobShadow radius={radius} />}
       <group ref={bounce}>
         {/* Lifted a hair so the idle bob never dips into the table */}
-        <group position-y={height / 2 + 0.012}>
+        <group ref={turn} position-y={height / 2 + 0.012}>
           <SpringyControls rest={rest} enabled={editingThis} face={face} apiRef={controls}>
             <IdleFloat phase={home.x * 3}>
-              <CylinderProduct spec={spec} bandProps={bandProps} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} />
+              {spec.kind === 'cylinder' && (
+                <CylinderProduct spec={spec} bandProps={bandProps} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} />
+              )}
+              {spec.kind === 'case' && (
+                <CaseProduct spec={spec} options={options} bandProps={bandProps} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} />
+              )}
+              {spec.kind === 'tee' && (
+                <TeeProduct spec={spec} options={options} bandProps={bandProps} onPointerOver={onOver} onPointerOut={onOut} onClick={onClick} />
+              )}
             </IdleFloat>
           </SpringyControls>
         </group>

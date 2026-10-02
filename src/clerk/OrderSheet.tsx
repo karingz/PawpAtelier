@@ -1,6 +1,7 @@
 import { useState, type RefObject } from 'react'
 import type { ProductSpec } from '../config/products'
 import { useDesignStore } from '../store/designStore'
+import { useProductOptions } from '../store/optionsStore'
 import { useUiStore } from '../store/uiStore'
 import { formatPrice } from './script'
 
@@ -11,6 +12,8 @@ export function OrderSheet({ spec, ref }: { spec: ProductSpec; ref: RefObject<HT
   const leaveCounter = useUiStore((s) => s.leaveCounter)
   const photos = layers.filter((l) => l.kind === 'photo').length
   const extras = layers.length - photos
+  const chosen = useProductOptions(spec)
+  const optionText = (spec.options ?? []).map((o) => `${o.label}: ${o.choices.find((c) => c.id === chosen[o.id])?.label}`).join(' · ')
 
   return (
     <section ref={ref} className="app__shop order">
@@ -18,6 +21,7 @@ export function OrderSheet({ spec, ref }: { spec: ProductSpec; ref: RefObject<HT
       <div className="order__line">
         <div>
           <div className="order__name">{spec.name}</div>
+          {optionText && <div className="order__meta">{optionText}</div>}
           <div className="order__meta">
             {photos ? `${photos} pet photo${photos > 1 ? 's' : ''}` : 'No photo yet'}
             {extras ? ` · ${extras} sticker${extras > 1 ? 's' : ''} or text${extras > 1 ? 's' : ''}` : ''}

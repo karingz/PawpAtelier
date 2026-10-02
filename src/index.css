@@ -995,6 +995,9 @@ button {
 .category-bar {
   display: flex;
   justify-content: space-around;
+  /* Seven categories with a product's options: scroll sideways on narrow phones. */
+  overflow-x: auto;
+  scrollbar-width: none;
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
   background: var(--paper);
   border-top: 1px solid var(--line);
@@ -1005,9 +1008,10 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex-shrink: 0;
   gap: 2px;
-  min-width: 56px;
-  padding: 6px 4px;
+  min-width: 50px;
+  padding: 6px 3px;
   border: none;
   border-radius: 14px;
   background: none;
@@ -1589,4 +1593,31 @@ button {
   .app--docked .clerk {
     top: 60px;
   }
+}
+
+/* Product options (tee color, print side, case finish) */
+.option-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.option-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.option-choice--on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgb(217 96 127 / 0.25);
+  font-weight: 700;
+}
+
+.option-choice__swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgb(59 47 47 / 0.25);
+  border-radius: 50%;
 }

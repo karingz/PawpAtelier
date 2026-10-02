@@ -12,7 +12,8 @@ import { ADJUSTMENTS, EFFECTS, isDefaultLook, withDefaults, type PhotoLook } fro
 import { renderLook } from './look/renderLook'
 import { PrintCanvas } from './PrintCanvas'
 import type { Tab } from '../store/uiStore'
-import { TABS } from './tabs'
+import { tabsFor } from './tabs'
+import { OptionsPanel } from './OptionsPanel'
 import { SurprisePanel } from './SurprisePanel'
 import { loadImageSize } from './useHtmlImage'
 
@@ -20,6 +21,7 @@ import { loadImageSize } from './useHtmlImage'
 export function TabPanel({ tab, spec }: { tab: Tab; spec: ProductSpec }) {
   return (
     <>
+      {tab === 'options' && <OptionsPanel spec={spec} />}
       {tab === 'photo' && <PhotoPanel spec={spec} />}
       {tab === 'effects' && <EffectsPanel />}
       {tab === 'stickers' && <StickerPanel spec={spec} />}
@@ -60,7 +62,7 @@ export function Editor({ spec }: { spec: ProductSpec }) {
       {!toolMode && (
         <>
           <nav className="tabs" role="tablist">
-            {TABS.map((t) => (
+            {tabsFor(spec).map((t) => (
               <button
                 key={t.id}
                 role="tab"

@@ -251,8 +251,10 @@ D2 = D/2
 empty('zone_drinkware', (sx, D2 - 0.6, 1.3), kind='SPHERE', size=0.2)
 empty('slot_mug_1', (sx - 0.3, D2 - 0.13, 1.355), kind='SINGLE_ARROW')
 empty('slot_tumbler_1', (sx + 0.3, D2 - 0.13, 0.975), kind='SINGLE_ARROW')
-empty('zone_apparel', (ax + 0.2, ay - 0.5, 1.2), kind='SPHERE', size=0.2)
+empty('zone_apparel', (-1.95, -0.1, 1.35), kind='SPHERE', size=0.2)
 empty('slot_tee_1', (ax, ay, 1.28), kind='SINGLE_ARROW')
+# The tee product hangs from the middle peg (marker = the bottom of the shirt: 28 in below the hook).
+empty('slot_tee_peg', (-W/2 + 0.08, -0.55, 1.8 - 0.712), kind='SINGLE_ARROW')
 empty('zone_accessories', (cx, D2 - 0.9, 1.0), kind='SPHERE', size=0.2)
 empty('slot_case_iphone', (cx - 0.15, D2 - 0.3, 1.09), kind='SINGLE_ARROW')
 empty('slot_case_galaxy', (cx + 0.15, D2 - 0.3, 1.09), kind='SINGLE_ARROW')

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { ZoneId } from '../config/products'
 
 /** Editor content categories (the dock's buttons / the flat editor's tabs). */
-export type Tab = 'photo' | 'effects' | 'stickers' | 'text' | 'background' | 'surprise'
+export type Tab = 'options' | 'photo' | 'effects' | 'stickers' | 'text' | 'background' | 'surprise'
 
 type UiState = {
   /** Shop view level: null = the whole room, else the zone the camera is at. */
