@@ -1,6 +1,6 @@
 # Room Plan (Phase 3)
 
-Status: **planned, not started** (2026-09-27).
+Status: **Atelier chosen (2026-10-01); graybox being designed in Blender.** The Concept Store is parked.
 
 Two room concepts get built as quick 3D "grayboxes" (simple blocks, real products, real camera
 moves). We then compare them on a phone and either pick one or offer both to visitors. After
@@ -8,6 +8,38 @@ that, the chosen room(s) get modeled and baked in Blender.
 
 Launch products: **mug, tumbler, t-shirt, phone case**. The rooms must have space for more
 categories later (grip-tok, hat, keycaps, …).
+
+## Decisions (2026-10-01)
+
+- **Room: the Atelier.** (The Concept Store stays documented below but isn't built for now.)
+- **Shopping walk-flow:** a real visit, not just an editor (see next section).
+- **Phone cases:** latest iPhone and latest Galaxy at launch.
+- **T-shirt:** print on the front or the back, wherever the customer wants; basic colors (white,
+  black, grey, beige, …).
+- **Pet profile:** only asked for when someone taps the pet corner (not on the first visit).
+- **Shopify / checkout:** later.
+- **Design tool:** the room is designed directly in Blender (graybox first, then the real model),
+  exported as GLB with named empties.
+
+## The shopping walk-flow (Atelier)
+
+Like visiting a small shop in person, with Leah as the clerk:
+
+1. **Walk in:** the room overview. Leah (the clerk) waves from her desk; the pet corner invites
+   "Bring your pet in!".
+2. **Pick a product:** tap a shelf / rack / cabinet drawer (zone), then a product. It comes off the
+   shelf with a little hop.
+3. **Talk with the clerk about it:** Leah walks you through the options in speech bubbles, game-NPC
+   style: color, size (tees), phone model (cases), front or back (tees). She also gives short
+   customizing tips ("Tap your pet on the mug to move it", "Try Surprise if you're stuck!").
+4. **Customize at the workbench:** the product sits on the workbench and the 3D editor opens (the
+   current editing UI: drawer, handles, effects, …). Leah stays nearby and can be tapped for help.
+5. **Bring it to the desk:** "Done? Bring it to the counter!" The camera moves to Leah's desk; she
+   shows the summary (product, options, price, preview).
+6. **Order:** a cute packing-into-a-box moment, then checkout (Shopify, later).
+
+The clerk is **Leah by default**. Option for later: once the customer adds their pet, their own pet
+can run the counter.
 
 ## Art style: cartoon, and light (both rooms)
 
@@ -140,14 +172,14 @@ ideally a hand-modeled Leah in the same baked Blender style (the shop's mascot).
 
 | # | Milestone | Deliverable |
 |---|---|---|
-| R1 | Room system + Atelier graybox | `RoomDef`/zones/slots; room → zone → product navigation; product hop to the edit stage; mug + tumbler in their zone; t-shirt and phone case as display-only placeholders |
-| P0 | Pet profile | "Show us your pet!" step with guided photo slots (face, side, whole body, pose) and quality checks; name; stored in the browser; "My pet" album in the Photo drawer; name in text suggestions and the randomizer; "Forget my pet" |
-| P1 | Pet standee | The customer's pet (or Leah) as an acrylic-stand figure in the pet corner, from the cutout photo; idle bob, hop on design changes, faces the product being edited |
-| R2 | Concept Store graybox + switch | Second room on the same system; header switch for side-by-side comparison on a phone |
-| R3 | T-shirt & phone case products | Specs (print areas matched to the US print-on-demand templates, e.g. Printful), placeholder models, flat surface mapping, on-product editing for both |
-| R4 | Review | Try both on a phone → pick one or keep both; write the art brief for Blender (props, palette, camera shots, slot names) |
-| R5 | Blender room(s) | Model + bake (Cycles → texture atlas, unlit in three.js), export GLB with named empties; loader (Draco + KTX2); replace the graybox |
-| R6 | Room life (later, with polish) | Hover wobbles, drawers sliding open, Leah's idle animation, sounds |
+| R1 ✅ | Atelier graybox in Blender (2026-10-01: `art/atelier-graybox.blend`, generator `art/scripts/atelier_graybox.py`, export `public/rooms/atelier.glb` 214 KB, previews in `art/previews/`) | Blocked-out room (shell, window, drinkware shelves, apparel corner, accessory type-case, workbench, Leah's desk, pet corner) in the cartoon palette; named empties for slots, zones, workbench, desk, clerk, camera shots; exported GLB |
+| R2 | Room in the app | GLB loader; room replaces the placeholder table; products placed in their slots; room → zone → product navigation; product hop to the workbench |
+| W1 | Clerk walk-flow | Leah as the clerk at her desk (standee to start); speech-bubble dialog for product options and tips; "bring it to the counter" → order summary at the desk |
+| R3 | T-shirt & phone case products | Specs (latest iPhone + Galaxy; tee front/back, basic colors; print areas from the US print-on-demand templates, e.g. Printful), models, flat surface mapping, on-product editing |
+| P0 | Pet profile | Tapping the pet corner opens "Show us your pet!": guided photo slots (face, side, whole body, pose) with quality checks; name; stored in the browser; "My pet" album; "Forget my pet" |
+| P1 | Pet standee | The customer's pet as an acrylic-stand figure in the pet corner (Leah stays the clerk); idle bob, hop on design changes |
+| R5 | Real room art | Model + bake in Blender (Cycles → texture atlas, unlit in three.js), Draco/KTX2, replacing the graybox |
+| R6 | Room life (later, with polish) | Hover wobbles, drawers sliding open, Leah's idle animation, packing animation, sounds |
 | P2 | Pet depth pop (later) | The standee gets real volume from an AI depth map (license check first) |
 
 ## Blender handoff spec (for R5)
@@ -162,16 +194,14 @@ ideally a hand-modeled Leah in the same baked Blender style (the shop's mascot).
 
 ## Open questions
 
-1. **Phone case models** for launch: which phones (e.g. latest iPhone + Galaxy)? Each model is its
-   own print template.
-2. **T-shirt:** print area (front chest only, or front + back) and colors.
+1. ~~Phone case models~~ → latest iPhone + latest Galaxy (decided).
+2. ~~T-shirt~~ → front or back, the customer's choice; basic colors (decided).
 3. **Edit stage vs in place:** the plan is "product hops to the stage". Editing in place (camera
    flies to the shelf) is the fallback if the hop feels slow.
-4. After R4: **one room or both** for visitors?
+4. ~~One room or both~~ → the Atelier (decided).
 5. **Pet in the room:** one pet per profile to start; households with several pets (several profiles,
    several standees) later?
-6. **Pet profile step:** shown on the first visit (skippable), or only when the visitor taps the pet
-   corner / "Add your pet"?
+6. ~~Pet profile step~~ → only when the pet corner is tapped (decided).
 7. **Keeping photos beyond an order** (e.g. to improve the 3D pet over time, or to build our own
    training data later) needs explicit, separate opt-in consent and a privacy policy that says so.
    Default: no.
