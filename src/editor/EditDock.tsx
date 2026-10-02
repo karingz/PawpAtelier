@@ -5,6 +5,7 @@ import { useUiStore } from '../store/uiStore'
 import { TabPanel } from './Editor'
 import { TABS } from './tabs'
 import { WrapStrip } from './WrapStrip'
+import { askLeah } from '../clerk/script'
 
 /**
  * Editing on the 3D product: a category bar (bottom on phones, a rail on the left on desktop)
@@ -88,6 +89,9 @@ function HistoryButtons() {
   const { undo, redo } = useDesignStore.getState()
   return (
     <div className="history-float">
+      <button className="btn btn--icon ask-leah" onClick={askLeah} aria-label="Ask Leah for a tip" title="Ask Leah">
+        <img src="/clerk/leah-avatar.webp" alt="" width={36} height={36} />
+      </button>
       <button className="btn btn--icon" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo (Ctrl+Z)">
         ↶
       </button>

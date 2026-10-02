@@ -215,10 +215,13 @@ kx, ky = 1.75, -0.9
 krot = (0, 0, math.radians(90))
 box('desk', (1.2, 0.6, 0.95), (kx, ky, 0.475), 'pink_soft', bevel=0.03, rot=krot)
 box('desk_top', (1.3, 0.7, 0.06), (kx, ky, 0.98), 'wood', bevel=0.02, rot=krot)
-box('register', (0.26, 0.32, 0.16), (kx + 0.05, ky - 0.32, 1.09), 'cream', bevel=0.03, rot=(0, 0, 0))
-box('register_screen', (0.03, 0.2, 0.1), (kx - 0.06, ky - 0.32, 1.2), 'ink', bevel=0.01, rot=(0, math.radians(20), 0))
+# Counter layout (seen from the room camera, +X/-Y): product spot in the middle, register
+# front-left, bell front-right, Leah lying at the back (her body reaches back toward -X/+Y).
+rx, ry = kx - 0.18, ky - 0.42
+box('register', (0.26, 0.32, 0.16), (rx, ry, 1.09), 'cream', bevel=0.03, rot=(0, 0, 0))
+box('register_screen', (0.03, 0.2, 0.1), (rx - 0.11, ry, 1.2), 'ink', bevel=0.01, rot=(0, math.radians(20), 0))
 box('desk_sign', (0.03, 0.42, 0.12), (kx - 0.36, ky + 0.2, 0.78), 'pink', bevel=0.02)
-cyl('bell', 0.05, 0.05, (kx - 0.12, ky + 0.35, 1.04), 'brass', verts=16, collection='Props')
+cyl('bell', 0.05, 0.05, (kx + 0.22, ky - 0.3, 1.04), 'brass', verts=16, collection='Props')
 box('stool_seat', (0.36, 0.36, 0.06), (kx + 0.0, ky - 1.05, 0.62), 'pink', bevel=0.025, collection='Props')
 cyl('stool_leg', 0.03, 0.6, (kx + 0.0, ky - 1.05, 0.3), 'wood_dark', verts=10, collection='Props')
 
@@ -254,8 +257,9 @@ empty('zone_accessories', (cx, D2 - 0.9, 1.0), kind='SPHERE', size=0.2)
 empty('slot_case_iphone', (cx - 0.15, D2 - 0.3, 1.09), kind='SINGLE_ARROW')
 empty('slot_case_galaxy', (cx + 0.15, D2 - 0.3, 1.09), kind='SINGLE_ARROW')
 empty('workbench', (bx, by - 0.05, 0.952), kind='CUBE', size=0.15)
-empty('desk', (kx - 0.05, ky + 0.05, 1.01), kind='CUBE', size=0.15)
-empty('clerk', (kx + 0.6, ky, 0.0), kind='SINGLE_ARROW', size=0.3, rot=(0, 0, math.radians(90)))
+empty('counter', (kx - 0.02, ky - 0.12, 1.01), kind='CUBE', size=0.15)
+# Leah lies on the counter, behind where the finished product is set down.
+empty('clerk', (kx + 0.18, ky + 0.12, 1.01), kind='SINGLE_ARROW', size=0.3)
 empty('pet_corner', (px, py, 0.18), kind='SINGLE_ARROW', size=0.3)
 
 # ---- preview-only product stand-ins (real products come from the app; never exported)

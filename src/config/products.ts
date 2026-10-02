@@ -11,7 +11,11 @@ export type CylinderSpec = {
   id: string
   kind: 'cylinder'
   name: string
+  /** What it's called in a sentence ("this mug"). */
+  noun: string
   zone: ZoneId
+  /** Retail price in US dollars. TODO: placeholder until pricing is decided (POD cost + margin). */
+  priceUsd: number
   /** Print wrap size in inches (flat template). */
   print: { widthIn: number; heightIn: number }
   /** Physical body size in inches. */
@@ -31,7 +35,9 @@ export const MUG_11OZ: CylinderSpec = {
   id: 'mug-11oz',
   kind: 'cylinder',
   name: 'Classic Mug 11oz',
+  noun: 'mug',
   zone: 'drinkware',
+  priceUsd: 19.99,
   print: { widthIn: 8.5, heightIn: 3.5 },
   body: { diameterIn: 3.25, heightIn: 3.8 },
   handle: true,
@@ -45,7 +51,9 @@ export const TUMBLER_20OZ: CylinderSpec = {
   id: 'tumbler-20oz',
   kind: 'cylinder',
   name: 'Skinny Tumbler 20oz',
+  noun: 'tumbler',
   zone: 'drinkware',
+  priceUsd: 29.99,
   print: { widthIn: 8.9, heightIn: 7.4 },
   body: { diameterIn: 2.9, heightIn: 8.0 },
   printOffsetIn: -0.15,

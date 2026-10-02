@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { PRODUCTS, getProduct } from './config/products'
 import { ATELIER } from './room/rooms'
+import { ClerkDialog } from './clerk/ClerkDialog'
+import { OrderSheet } from './clerk/OrderSheet'
+import { useClerkDirector } from './clerk/useClerkDirector'
 import { EditDock, ModeSwitch } from './editor/EditDock'
 import { Editor } from './editor/Editor'
 import { PrintStage } from './editor/PrintCanvas'
@@ -26,32 +29,42 @@ export default function App() {
   // and lasso open a full-screen tool for the photo; in the flat editor they work in place.
   const flatChosen = useUiStore((s) => s.flat)
   const tool = useDesignStore((s) => s.cropDraft !== null || s.lasso !== null)
-  const flat = view === 'edit' && flatChosen
-  const docked = view === 'edit' && !flat
+  // At Leah's desk: the order summary instead of the editing UI.
+  const counter = useUiStore((s) => s.atCounter) && view === 'edit'
+  const orderRef = useRef<HTMLElement>(null)
+  const orderInset = useCoveredFraction(viewerRef, orderRef, counter)
+  const flat = view === 'edit' && flatChosen && !counter
+  const docked = view === 'edit' && !flat && !counter
   const dockRef = useRef<HTMLDivElement>(null)
   const dockInset = useDockInsets(viewerRef, dockRef, docked)
 
   useEditorShortcuts()
+  useClerkDirector(ready)
 
   return (
-    <div className={`app app--${view}${docked ? ' app--docked' : ''}`}>
+    <div className={`app app--${view}${docked ? ' app--docked' : ''}${counter ? ' app--counter' : ''}`}>
       <header className="app__header">
         <BackButton />
         <h1>Pawp Atelier</h1>
         {view === 'edit' && <span className="app__product">{spec.name}</span>}
-        {view === 'edit' && <ModeSwitch />}
+        {view === 'edit' && !counter && <ModeSwitch />}
+        {view === 'edit' && !counter && <CounterButton />}
       </header>
 
       <main ref={mainRef} className="app__main" style={flat ? panel.style : undefined}>
         <section ref={viewerRef} className="app__viewer">
           <Scene
             onReady={() => setReady(true)}
-            bottomInset={view === 'shop' ? shopInset : docked ? dockInset.bottom : 0}
+            bottomInset={view === 'shop' ? shopInset : counter ? orderInset : docked ? dockInset.bottom : 0}
             leftInset={docked ? dockInset.left : 0}
           />
-          {view === 'edit' && !tool && <SelectionOverlay />}
-          <p className="app__hint">{view === 'shop' ? 'Tap something to make it yours' : 'Drag to turn · scroll or pinch to zoom'}</p>
+          {view === 'edit' && !tool && !counter && <SelectionOverlay />}
+          <p className="app__hint">
+            {view === 'shop' ? 'Tap something to make it yours' : counter ? 'Drag to turn it around' : 'Drag to turn · scroll or pinch to zoom'}
+          </p>
           {docked && <EditDock key={spec.id} spec={spec} dockRef={dockRef} />}
+          {counter && <OrderSheet key={spec.id} spec={spec} ref={orderRef} />}
+          <ClerkDialog />
         </section>
         {/* The print feeding the 3D product: mounted for any kind of editing. */}
         {view === 'edit' && <PrintStage key={spec.id} spec={spec} />}
@@ -71,13 +84,31 @@ export default function App() {
   )
 }
 
-/** Back one level: product → its zone, zone → the whole room. */
+/** "Done": take the product to Leah's desk for the order. */
+function CounterButton() {
+  const goToCounter = useUiStore((s) => s.goToCounter)
+  return (
+    <button className="btn btn--primary btn--counter" onClick={goToCounter} title="Bring it to the counter">
+      Done <span aria-hidden>🛎️</span>
+    </button>
+  )
+}
+
+/** Back one level: counter → editing, product → its zone, zone → the whole room. */
 function BackButton() {
   const view = useDesignStore((s) => s.view)
   const productId = useDesignStore((s) => s.productId)
   const zone = useUiStore((s) => s.zone)
   const { backToShop } = useDesignStore.getState()
-  const { setZone } = useUiStore.getState()
+  const { setZone, leaveCounter } = useUiStore.getState()
+  const counter = useUiStore((s) => s.atCounter)
+  if (view === 'edit' && counter) {
+    return (
+      <button className="btn btn--back" onClick={leaveCounter}>
+        ← Keep editing
+      </button>
+    )
+  }
   if (view === 'edit') {
     const z = ATELIER.zones.find((x) => x.id === getProduct(productId).zone)
     return (

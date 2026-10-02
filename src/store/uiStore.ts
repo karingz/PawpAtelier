@@ -8,6 +8,10 @@ type UiState = {
   /** Shop view level: null = the whole room, else the zone the camera is at. */
   zone: ZoneId | null
   setZone: (zone: ZoneId | null) => void
+  /** The product being edited was brought to Leah's desk for the order summary. */
+  atCounter: boolean
+  goToCounter: () => void
+  leaveCounter: () => void
   /** Open drawer over the 3D scene, or null. */
   drawer: Tab | null
   /** The full 2D editor instead of editing on the 3D product. */
@@ -29,6 +33,9 @@ type UiState = {
 export const useUiStore = create<UiState>()((set) => ({
   zone: null,
   setZone: (zone) => set({ zone }),
+  atCounter: false,
+  goToCounter: () => set({ atCounter: true, drawer: null, editingTextId: null }),
+  leaveCounter: () => set({ atCounter: false }),
   drawer: null,
   flat: false,
   editingTextId: null,

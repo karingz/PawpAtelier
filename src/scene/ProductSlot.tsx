@@ -38,8 +38,10 @@ export function ProductSlot({ spec, home, stage, rest, viewYaw }: Props) {
   const openProduct = useDesignStore((s) => s.openProduct)
   const dom = useThree((s) => s.gl.domElement)
   const editingThis = view === 'edit' && activeId === spec.id
+  // At the counter it can still be turned around, but the design isn't editable there.
+  const atCounter = useUiStore((s) => s.atCounter)
   const { height } = cylinderSize(spec)
-  const bandProps = useSurfaceEditing(spec, editingThis)
+  const bandProps = useSurfaceEditing(spec, editingThis && !atCounter)
 
   // A point at band angle θ faces the camera when θ + rest spin + spin ≡ the camera's yaw.
   const spinToFace = (x: number) => {
